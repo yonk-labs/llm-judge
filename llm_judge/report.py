@@ -53,6 +53,14 @@ def write_case_audit(case_dir: Path, case: EvalCase, decision: JudgeDecision) ->
 
 {case.expected}
 
+## Expected Required Facts
+
+{_list(case.expected_facts)}
+
+## Acceptable Answers
+
+{_list([str(item) for item in case.metadata.get("acceptable_answers", [])])}
+
 ## Judge Rationale
 
 {decision.rationale}
@@ -93,6 +101,7 @@ def result_row(case: EvalCase, decision: JudgeDecision) -> dict[str, Any]:
         "answer": case.answer,
         "expected": case.expected,
         "expected_facts": case.expected_facts,
+        "reference_contexts": case.reference_contexts,
         "verdict": decision.verdict,
         "score": decision.score,
         "passed": decision.passed,

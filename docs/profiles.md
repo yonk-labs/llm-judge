@@ -10,6 +10,7 @@ Internal fields:
 - `expected`
 - `expected_facts`
 - `chunks`
+- `reference_contexts`
 - `settings`
 - `metadata`
 
@@ -41,6 +42,7 @@ Accepted aliases:
 - Expected answer: `gold_answer`, `expected`, `reference`, `answer_key`
 - Required facts: `required_facts`, `expected_facts`, `facts`
 - Chunks/context: `retrieved_full_context`, `retrieved_context`, `retrieved_chunks`, `chunks`, `summarized_answer_context`, `summary_context`, `context`
+- Full/oracle context for generated gold answers: `reference_context`, `reference_contexts`, `oracle_context`, `full_context`, `full_data`
 - Settings: `settings`, `config`, `config_label`, `experiment`, `strategy`, `retrievable`, `token_counts`, `retrieval_mode`, `chunker`
 
 Example:
@@ -55,3 +57,5 @@ Some profiles can load raw question files that do not contain generated answers.
 
 - a prediction field in the same record, or
 - `--generate-answer` with retrieved chunks/context.
+
+If a dataset has no gold/reference answer, provide full/oracle context and use `--generate-expected` before judging. The generated reference is stored as `expected`, while acceptable aliases are preserved in metadata for semantic judging.

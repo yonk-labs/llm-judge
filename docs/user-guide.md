@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`llm-judge` is a local-first utility for evaluating RAG and benchmark runs. It can judge existing answers, generate missing answers from retrieved context, and write inspectable per-case audits.
+`llm-judge` is a local-first utility for evaluating RAG and benchmark runs. It can judge existing answers, generate missing answers from retrieved context, generate missing gold/reference answers from full/oracle context, and write inspectable per-case audits.
 
 ## Core Workflow
 
@@ -54,6 +54,30 @@ python3 -m llm_judge evaluate \
   --out .llm-judge-runs/chunkshop-e1e8
 ```
 
+## Generating Gold/Reference Answers
+
+Use this when a benchmark gives you the full source data but no trusted `gold_answer`. Put the full/oracle data in a field such as `reference_context`, `oracle_context`, `full_context`, or `full_data`. Keep retrieved chunks in `chunks`/`retrieved_contexts` so the candidate answer is still generated from the same limited evidence your RAG system saw.
+
+```json
+{"id":"birthplace","question":"Where was Matt Yonkovit born?","answer":"He was born in Grand Rapids.","expected":"","reference_context":"Matt Yonkovit was born at St Mary's Hospital in Grand Rapids, Michigan.","chunks":["Matt Yonkovit grew up in Michigan."]}
+```
+
+```bash
+python3 -m llm_judge evaluate \
+  --input cases.jsonl \
+  --generate-expected \
+  --expected-provider openai-compatible \
+  --expected-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/reference-generated
+```
+
+You can also generate both sides in one run: `--generate-expected` creates the reference from full/oracle context, then `--generate-answer` creates the candidate answer from retrieved chunks.
+
+For more robust baselines, use up to three reference generators in YAML. The first successful reference becomes the expected answer; all successful expected answers and listed aliases are retained as acceptable answers for semantic judging.
+
 ## YAML Setup With Up To Three Judges
 
 Create a run file:
@@ -64,6 +88,7 @@ profile: chunkshop-e1e8
 out: .llm-judge-runs/three-judges
 mode: accurate
 generate_answer: true
+generate_expected: true
 concurrency: 3
 cache_dir: .llm-judge-cache
 resume: true
@@ -73,6 +98,15 @@ answer:
   model: gpt-4.1-mini
   base_url: https://api.openai.com/v1
   api_key_env: OPENAI_API_KEY
+
+references:
+  - provider: openai-compatible
+    model: gpt-4.1-mini
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+  - provider: openrouter
+    model: anthropic/claude-3.5-sonnet
+    api_key_env: OPENROUTER_API_KEY
 
 judges:
   - provider: openai-compatible
@@ -93,7 +127,7 @@ Run it:
 python3 -m llm_judge evaluate --config run.yaml
 ```
 
-The final decision aggregates up to three judge verdicts. Individual judge results are preserved in `results.jsonl` under `raw.individual_judges`.
+The final decision aggregates up to three judge verdicts. Individual judge results are preserved in `results.jsonl` under `raw.individual_judges`. Reference-generation details are preserved in each row under `metadata.reference_generation`.
 
 A copyable real-provider template is available at `examples/llm_config.sample.yaml`.
 
@@ -113,7 +147,7 @@ Provider failures and malformed judge JSON become `ERROR` rows. They do not abor
 
 - `summary.md`: aggregate pass rate, mean score, error count, slowest cases, common missing facts.
 - `results.jsonl`: one machine-readable row per case.
-- `cases/<case-id>.md`: full audit with question, settings, chunks, answer, expected answer, supported/missing facts, contradictions, and timing.
+- `cases/<case-id>.md`: full audit with question, settings, chunks, answer, expected answer, required facts, acceptable answers, supported/missing facts, contradictions, and timing.
 
 ## Verdicts
 

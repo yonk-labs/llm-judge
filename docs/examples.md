@@ -37,6 +37,22 @@ llm-judge evaluate \
   --out .llm-judge-runs/chunkshop
 ```
 
+## Missing Gold/Reference Answers
+
+```bash
+llm-judge evaluate \
+  --input examples/baseline_reference_generation.jsonl \
+  --generate-expected \
+  --expected-provider openai-compatible \
+  --expected-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/baseline-reference
+```
+
+The broad birthplace case can accept semantically true variants such as state, city, or site. The specific city-and-hospital case should require both requested fields.
+
 ## Local Two-Judge Setup
 
 ```bash

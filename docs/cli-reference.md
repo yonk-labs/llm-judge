@@ -33,6 +33,13 @@ python3 -m llm_judge evaluate --input cases.jsonl --mode quick
 | `--base-url` | URL | provider default | Judge provider base URL. |
 | `--api-key-env` | string | provider default | Environment variable containing judge API key. |
 | `--judge-command` | string | none | Command provider executable for judge calls. |
+| `--generate-expected`, `--generate-gold` | flag | false | Generate missing expected/gold answers from full/oracle context before judging. |
+| `--expected-provider`, `--gold-provider` | string | answer/judge provider | Reference/gold generator provider. |
+| `--expected-model`, `--gold-model` | string | answer/judge model | Reference/gold generator model. |
+| `--expected-base-url`, `--gold-base-url` | URL | answer/judge base URL | Reference/gold generator base URL. |
+| `--expected-api-key-env`, `--gold-api-key-env` | string | answer/judge key env | Reference/gold generator API key env var. |
+| `--expected-command`, `--gold-command` | string | answer/judge command | Command provider executable for reference/gold generation. |
+| `--expected-samples`, `--gold-samples` | int | `1` | Number of reference generations with the same CLI provider, max 3. |
 | `--generate-answer` | flag | false | Generate answers when input answer is empty. |
 | `--answer-provider` | string | `--provider` | Answer-generation provider. |
 | `--answer-model` | string | `--model` | Answer-generation model. |
@@ -95,6 +102,7 @@ profile: chunkshop-e1e8
 out: .llm-judge-runs/chunkshop-e1e8
 mode: accurate
 generate_answer: true
+generate_expected: true
 concurrency: 8
 cache_dir: .llm-judge-cache
 resume: true
@@ -108,6 +116,15 @@ answer:
   base_url: https://api.openai.com/v1
   api_key_env: OPENAI_API_KEY
 
+references:
+  - provider: openai-compatible
+    model: gpt-4.1-mini
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+  - provider: openrouter
+    model: anthropic/claude-3.5-sonnet
+    api_key_env: OPENROUTER_API_KEY
+
 judges:
   - provider: openai-compatible
     model: gpt-4.1-mini
@@ -120,6 +137,8 @@ judges:
     model: claude-3-5-sonnet-latest
     api_key_env: ANTHROPIC_API_KEY
 ```
+
+`references` supports one to three entries for generating missing gold/reference answers from full/oracle context. The first successful reference becomes `expected`; all successful expected answers and acceptable variants are preserved as acceptable answers.
 
 `judges` supports one to three entries. If all judges fail, the final verdict is `ERROR`. If some judges fail, successful judges are still aggregated.
 

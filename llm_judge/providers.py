@@ -52,6 +52,18 @@ class MockProvider(LLMProvider):
     def complete(self, prompt: str, *, json_mode: bool = False) -> LLMResponse:
         if not json_mode:
             return LLMResponse(text="Mock answer generated from provided context.", latency_ms=0)
+        if "Create a benchmark reference answer" in prompt:
+            return LLMResponse(
+                text=json.dumps(
+                    {
+                        "expected": "Mock reference answer generated from oracle context.",
+                        "expected_facts": ["mock provider does not evaluate oracle context"],
+                        "acceptable_answers": ["Mock reference answer"],
+                        "rationale": "Mock provider returned a fixed reference for smoke testing.",
+                    }
+                ),
+                latency_ms=0,
+            )
         return LLMResponse(
             text=json.dumps(
                 {

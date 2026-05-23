@@ -4,7 +4,7 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-from .config import judge_sections, load_run_config, pick, pick_provider_value, section
+from .config import judge_sections, load_run_config, pick, pick_provider_value, reference_sections, section
 from .engine import evaluate_cases
 from .io import PROFILES, load_cases
 from .providers import CachedProvider, LLMProvider, build_provider
@@ -34,6 +34,13 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--base-url", help="Provider base URL.")
     evaluate.add_argument("--api-key-env", help="Environment variable containing provider API key.")
     evaluate.add_argument("--judge-command", help="Command provider executable. Prompt is passed on stdin.")
+    evaluate.add_argument("--generate-expected", "--generate-gold", dest="generate_expected", action="store_true", default=None, help="Generate missing expected/gold answers from full/oracle context before judging.")
+    evaluate.add_argument("--expected-provider", "--gold-provider", dest="expected_provider", help="Reference/gold generator provider. Defaults to --answer-provider or --provider.")
+    evaluate.add_argument("--expected-model", "--gold-model", dest="expected_model", help="Reference/gold generator model. Defaults to --answer-model or --model.")
+    evaluate.add_argument("--expected-base-url", "--gold-base-url", dest="expected_base_url", help="Reference/gold generator base URL.")
+    evaluate.add_argument("--expected-api-key-env", "--gold-api-key-env", dest="expected_api_key_env", help="Reference/gold generator API key env var.")
+    evaluate.add_argument("--expected-command", "--gold-command", dest="expected_command", help="Command provider executable for reference/gold generation.")
+    evaluate.add_argument("--expected-samples", "--gold-samples", dest="expected_samples", type=int, help="Number of reference/gold generations to run with the same CLI provider, max 3.")
     evaluate.add_argument("--generate-answer", action="store_true", default=None, help="Generate missing answers from retrieved chunks before judging.")
     evaluate.add_argument("--answer-provider", help="Answer model provider. Defaults to --provider.")
     evaluate.add_argument("--answer-model", help="Answer model name. Defaults to --model.")
@@ -72,6 +79,10 @@ def run_evaluate(args: argparse.Namespace) -> int:
     llm_threshold = float(pick(args.llm_threshold, config, "llm_threshold", 0.72))
     resume = bool(pick(args.resume, config, "resume", False))
     generate_answer_flag = bool(pick(args.generate_answer, config, "generate_answer", False))
+    generate_expected_flag = bool(pick(args.generate_expected, config, "generate_expected", False) or pick(args.generate_expected, config, "generate_gold", False))
+    expected_samples = int(pick(args.expected_samples, config, "expected_samples", 1))
+    if expected_samples > 3:
+        raise SystemExit("--expected-samples supports at most 3")
     cache_value = pick(args.cache_dir, config, "cache_dir")
     cache_dir = Path(cache_value) if cache_value else None
 
@@ -122,6 +133,29 @@ def run_evaluate(args: argparse.Namespace) -> int:
         if cache_dir:
             answer_provider = CachedProvider(answer_provider, cache_dir, "answer")
 
+    reference_provider: LLMProvider | None = None
+    reference_providers: list[LLMProvider] | None = None
+    if generate_expected_flag:
+        reference_cfgs = reference_sections(config)
+        fallback_answer_cfg = section(config, "answer")
+        if not reference_cfgs:
+            reference_cfgs = [{} for _ in range(max(1, expected_samples))]
+        reference_providers = [
+            _build_reference_provider(
+                reference_cfg,
+                fallback_answer_cfg=fallback_answer_cfg,
+                args=args,
+                config=config,
+                timeout=timeout,
+                temperature=temperature,
+                retries=retries,
+                cache_dir=cache_dir,
+                cache_namespace=f"reference-{index}",
+            )
+            for index, reference_cfg in enumerate(reference_cfgs[:3], 1)
+        ]
+        reference_provider = reference_providers[0] if len(reference_providers) == 1 else None
+
     rows = evaluate_cases(
         cases,
         out_dir=out_dir,
@@ -130,7 +164,10 @@ def run_evaluate(args: argparse.Namespace) -> int:
         judge_provider=provider,
         judge_providers=judge_providers,
         answer_provider=answer_provider,
+        reference_provider=reference_provider,
+        reference_providers=reference_providers,
         generate_missing_answer=generate_answer_flag,
+        generate_missing_expected=generate_expected_flag,
         concurrency=max(1, concurrency),
         llm_threshold=llm_threshold,
         parse_retries=parse_retries,
@@ -158,6 +195,58 @@ def _build_provider_from_config(
         base_url=provider_config.get("base_url"),
         api_key_env=provider_config.get("api_key_env"),
         command=provider_config.get("command") or provider_config.get("judge_command"),
+        timeout=float(provider_config.get("timeout", timeout)),
+        temperature=float(provider_config.get("temperature", temperature)),
+        retries=int(provider_config.get("retries", retries)),
+    )
+    if cache_dir:
+        return CachedProvider(provider, cache_dir, provider_config.get("cache_namespace", cache_namespace))
+    return provider
+
+
+def _build_reference_provider(
+    provider_config: dict,
+    *,
+    fallback_answer_cfg: dict,
+    args: argparse.Namespace,
+    config: dict,
+    timeout: float,
+    temperature: float,
+    retries: int,
+    cache_dir: Path | None,
+    cache_namespace: str,
+) -> LLMProvider:
+    provider = build_provider(
+        provider=pick_provider_value(
+            args.expected_provider,
+            provider_config,
+            "provider",
+            pick_provider_value(args.answer_provider, fallback_answer_cfg, "provider", pick(args.provider, config, "provider", "openai-compatible")),
+        ),
+        model=pick_provider_value(
+            args.expected_model,
+            provider_config,
+            "model",
+            pick_provider_value(args.answer_model, fallback_answer_cfg, "model", pick(args.model, config, "model")),
+        ),
+        base_url=pick_provider_value(
+            args.expected_base_url,
+            provider_config,
+            "base_url",
+            pick_provider_value(args.answer_base_url, fallback_answer_cfg, "base_url", pick(args.base_url, config, "base_url")),
+        ),
+        api_key_env=pick_provider_value(
+            args.expected_api_key_env,
+            provider_config,
+            "api_key_env",
+            pick_provider_value(args.answer_api_key_env, fallback_answer_cfg, "api_key_env", pick(args.api_key_env, config, "api_key_env")),
+        ),
+        command=pick_provider_value(
+            args.expected_command,
+            provider_config,
+            "command",
+            pick_provider_value(args.answer_command, fallback_answer_cfg, "command", pick(args.judge_command, config, "judge_command")),
+        ),
         timeout=float(provider_config.get("timeout", timeout)),
         temperature=float(provider_config.get("temperature", temperature)),
         retries=int(provider_config.get("retries", retries)),

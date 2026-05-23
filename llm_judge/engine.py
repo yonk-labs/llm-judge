@@ -7,10 +7,10 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from .io import dump_jsonl
-from .models import EvalCase, JudgeDecision, normalize_verdict
+from .models import EvalCase, JudgeDecision, ReferenceDecision, normalize_verdict
 from .providers import LLMProvider
 from .report import result_row, write_case_audit, write_summary
-from .scorers import generate_answer, llm_score, quick_score
+from .scorers import generate_answer, generate_reference, llm_score, quick_score
 
 
 def evaluate_case(
@@ -21,7 +21,10 @@ def evaluate_case(
     judge_provider: LLMProvider | None = None,
     judge_providers: Sequence[LLMProvider] | None = None,
     answer_provider: LLMProvider | None = None,
+    reference_provider: LLMProvider | None = None,
+    reference_providers: Sequence[LLMProvider] | None = None,
     generate_missing_answer: bool = False,
+    generate_missing_expected: bool = False,
     llm_threshold: float = 0.72,
     parse_retries: int = 1,
 ) -> tuple[EvalCase, JudgeDecision]:
@@ -42,6 +45,10 @@ def evaluate_case(
         precedence over ``judge_provider``.
     answer_provider:
         Provider used when ``generate_missing_answer`` is enabled.
+    reference_provider:
+        Provider used when ``generate_missing_expected`` is enabled.
+    reference_providers:
+        Optional ensemble of one to three providers for reference/gold generation.
     generate_missing_answer:
         If true, generate an answer when ``case.answer`` is empty.
     llm_threshold:
@@ -50,15 +57,46 @@ def evaluate_case(
         Number of malformed judge-JSON repair attempts.
     """
     working = case
-    if generate_missing_answer and not case.answer.strip():
-        if answer_provider is None:
-            return case, JudgeDecision.error("answer generation requested but no answer provider configured")
-        answer = generate_answer(case, answer_provider)
+    if generate_missing_expected and not working.expected.strip():
+        providers = _resolve_reference_providers(reference_provider, reference_providers)
+        if not providers:
+            return working, JudgeDecision.error("reference generation requested but no reference provider configured")
+        reference = generate_reference_with_providers(working, providers, parse_retries=parse_retries)
         working = replace(
-            case,
+            working,
+            expected=reference.expected,
+            expected_facts=reference.expected_facts or working.expected_facts,
+            metadata={
+                **working.metadata,
+                "acceptable_answers": reference.acceptable_answers,
+                "reference_generation": {
+                    "provider": reference.provider,
+                    "model": reference.model,
+                    "latency_ms": reference.latency_ms,
+                    "error": reference.error,
+                    "rationale": reference.rationale,
+                    "acceptable_answers": reference.acceptable_answers,
+                    "raw": reference.raw,
+                },
+            },
+        )
+        if reference.error:
+            return working, JudgeDecision.error(
+                f"reference generation failed: {reference.error}",
+                provider=reference.provider,
+                model=reference.model,
+                latency_ms=reference.latency_ms,
+            )
+
+    if generate_missing_answer and not working.answer.strip():
+        if answer_provider is None:
+            return working, JudgeDecision.error("answer generation requested but no answer provider configured")
+        answer = generate_answer(working, answer_provider)
+        working = replace(
+            working,
             answer=answer.answer,
             metadata={
-                **case.metadata,
+                **working.metadata,
                 "generated_answer": answer.answer,
                 "answer_generation": {
                     "provider": answer.provider,
@@ -96,6 +134,81 @@ def _resolve_judge_providers(
     if judge_providers is not None:
         return list(judge_providers)
     return [judge_provider] if judge_provider is not None else []
+
+
+def _resolve_reference_providers(
+    reference_provider: LLMProvider | None,
+    reference_providers: Sequence[LLMProvider] | None,
+) -> list[LLMProvider]:
+    if reference_providers is not None:
+        return list(reference_providers)
+    return [reference_provider] if reference_provider is not None else []
+
+
+def generate_reference_with_providers(
+    case: EvalCase,
+    providers: Sequence[LLMProvider],
+    *,
+    parse_retries: int = 1,
+) -> ReferenceDecision:
+    """Generate a reference answer with one to three providers and keep variants."""
+    if len(providers) > 3:
+        return ReferenceDecision(expected="", error="at most 3 reference providers are supported")
+    decisions = [generate_reference(case, provider, parse_retries=parse_retries) for provider in providers]
+    valid = [decision for decision in decisions if not decision.error and decision.expected.strip()]
+    if not valid:
+        return ReferenceDecision(
+            expected="",
+            rationale="all reference generators failed",
+            provider="reference-ensemble",
+            model=",".join(decision.model for decision in decisions),
+            latency_ms=sum(decision.latency_ms for decision in decisions),
+            raw={"individual_references": [_reference_raw(decision) for decision in decisions]},
+            error="all reference generators failed",
+        )
+    primary = valid[0]
+    acceptable = []
+    for decision in valid:
+        acceptable.extend([decision.expected, *decision.acceptable_answers])
+    deduped_acceptable = _dedupe(acceptable)
+    rationale = primary.rationale
+    if len(decisions) > 1:
+        rationale = f"Primary reference from {primary.provider}/{primary.model}. Collected {len(valid)}/{len(decisions)} successful reference generations."
+    return ReferenceDecision(
+        expected=primary.expected,
+        expected_facts=primary.expected_facts,
+        acceptable_answers=deduped_acceptable,
+        rationale=rationale,
+        latency_ms=sum(decision.latency_ms for decision in decisions),
+        provider=primary.provider if len(decisions) == 1 else "reference-ensemble",
+        model=primary.model if len(decisions) == 1 else ",".join(decision.model for decision in decisions),
+        raw={"individual_references": [_reference_raw(decision) for decision in decisions]},
+    )
+
+
+def _reference_raw(decision: ReferenceDecision) -> dict:
+    return {
+        "provider": decision.provider,
+        "model": decision.model,
+        "expected": decision.expected,
+        "expected_facts": decision.expected_facts,
+        "acceptable_answers": decision.acceptable_answers,
+        "rationale": decision.rationale,
+        "latency_ms": decision.latency_ms,
+        "error": decision.error,
+    }
+
+
+def _dedupe(values: Sequence[str]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        normalized = value.strip().casefold()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(value.strip())
+    return result
 
 
 def score_with_judges(
@@ -187,7 +300,10 @@ def evaluate_cases(
     judge_provider: LLMProvider | None = None,
     judge_providers: Sequence[LLMProvider] | None = None,
     answer_provider: LLMProvider | None = None,
+    reference_provider: LLMProvider | None = None,
+    reference_providers: Sequence[LLMProvider] | None = None,
     generate_missing_answer: bool = False,
+    generate_missing_expected: bool = False,
     concurrency: int = 1,
     llm_threshold: float = 0.72,
     parse_retries: int = 1,
@@ -213,6 +329,10 @@ def evaluate_cases(
         Optional ensemble of one to three judge providers.
     answer_provider:
         Provider used for answer generation.
+    reference_provider:
+        Provider used for reference/gold answer generation.
+    reference_providers:
+        Optional ensemble of one to three reference/gold generators.
     generate_missing_answer:
         Generate answers for cases where ``answer`` is empty.
     concurrency:
@@ -246,7 +366,10 @@ def evaluate_cases(
             judge_provider=judge_provider,
             judge_providers=judge_providers,
             answer_provider=answer_provider,
+            reference_provider=reference_provider,
+            reference_providers=reference_providers,
             generate_missing_answer=generate_missing_answer,
+            generate_missing_expected=generate_missing_expected,
             llm_threshold=llm_threshold,
             parse_retries=parse_retries,
         )

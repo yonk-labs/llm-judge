@@ -21,6 +21,21 @@ CHUNK_KEYS = (
     "conversation",
     "dialogue",
 )
+REFERENCE_CONTEXT_KEYS = (
+    "reference_contexts",
+    "reference_context",
+    "oracle_contexts",
+    "oracle_context",
+    "baseline_contexts",
+    "baseline_context",
+    "full_contexts",
+    "full_context",
+    "full_data",
+    "source_contexts",
+    "source_context",
+    "gold_contexts",
+    "gold_context",
+)
 
 PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
     "default": {
@@ -30,6 +45,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": EXPECTED_KEYS,
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": CHUNK_KEYS,
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config"),
     },
     "ragas": {
@@ -39,6 +55,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("reference", "expected", "gold", "gold_answer", "reference_answer", "rubrics"),
         "expected_facts": ("expected_facts", "required_facts", "rubrics"),
         "chunks": ("retrieved_contexts", "contexts", "reference_contexts", "chunks", "context"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "experiment"),
     },
     "locomo": {
@@ -48,6 +65,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answer", "expected", "gold_answer", "reference", "answers"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("context", "conversation", "dialogue", "evidence", "memory", "memories", "retrieved_contexts"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "question_type", "category"),
     },
     "longbench": {
@@ -57,6 +75,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answers", "reference", "expected", "gold", "gold_answer"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("context", "contexts", "retrieved_contexts", "chunks", "evidence"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "dataset", "task"),
     },
     "langbench": {
@@ -66,6 +85,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answers", "reference", "expected", "gold", "gold_answer"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("context", "contexts", "retrieved_contexts", "chunks", "evidence"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "dataset", "task"),
     },
     "pgraggraph-e2e": {
@@ -75,6 +95,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("cell.answers", "answers", "gold", "reference"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("cell.chunks", "chunks", "retrieved_contexts", "contexts"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "cell"),
     },
     "benchmark-results": {
@@ -84,6 +105,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("gold", "gold_answer", "reference", "answers", "expected", "gold_aliases", "answer_aliases"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("chunks", "contexts", "retrieved_contexts", "context", "evidence", "supporting_docs"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "mode", "dataset", "corpus", "hop_class", "type", "level", "category"),
     },
     "graphrag-bench": {
@@ -93,6 +115,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("gold_answer", "required_facts", "expected_substring", "expected", "reference", "answer"),
         "expected_facts": ("required_facts", "expected_facts"),
         "chunks": ("chunks", "contexts", "retrieved_contexts", "context", "evidence"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("settings", "config", "question_class", "category", "corpus"),
     },
     "hotpotqa": {
@@ -102,6 +125,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answer", "answers", "gold", "reference"),
         "expected_facts": ("expected_facts", "required_facts", "supporting_facts"),
         "chunks": ("context", "supporting_docs", "supporting_facts", "retrieved_contexts", "chunks"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("type", "level", "settings", "config"),
     },
     "musique": {
@@ -111,6 +135,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answer", "answer_text", "gold", "gold_aliases", "answer_aliases"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("paragraphs", "context", "retrieved_contexts", "chunks"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("hop_class", "question_decomposition", "decomposition", "mode", "settings", "config"),
     },
     "twowiki": {
@@ -120,6 +145,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answer", "answers", "aliases", "gold", "reference"),
         "expected_facts": ("expected_facts", "required_facts", "supporting_facts"),
         "chunks": ("context", "supporting_facts", "retrieved_contexts", "chunks"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("type", "level", "settings", "config"),
     },
     "multihop-rag": {
@@ -129,6 +155,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "expected": ("answer", "answers", "gold", "reference"),
         "expected_facts": ("expected_facts", "required_facts"),
         "chunks": ("evidence_list", "evidence", "context", "retrieved_contexts", "chunks"),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": ("question_type", "type", "settings", "config"),
     },
     "chunkshop-e1e8": {
@@ -146,6 +173,7 @@ PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
             "summary_context",
             "context",
         ),
+        "reference_contexts": REFERENCE_CONTEXT_KEYS,
         "settings": (
             "settings",
             "config",
@@ -331,6 +359,7 @@ def load_cases(path: Path, profile: str = "default") -> list[EvalCase]:
         *mapping["expected"],
         *mapping.get("expected_facts", ()),
         *mapping["chunks"],
+        *mapping.get("reference_contexts", ()),
         *mapping.get("settings", ()),
     }
     for line_no, record in enumerate(records, 1):
@@ -340,6 +369,7 @@ def load_cases(path: Path, profile: str = "default") -> list[EvalCase]:
         expected = _as_text(_first(record, mapping["expected"]))
         expected_facts = _as_text_list(_first(record, mapping.get("expected_facts", ()), []))
         chunks = _as_chunks(_first(record, mapping["chunks"], []))
+        reference_contexts = _as_chunks(_first(record, mapping.get("reference_contexts", ()), []))
         settings = _settings_from_record(record, mapping.get("settings", ("settings", "config")))
         if isinstance(settings, str):
             try:
@@ -356,6 +386,7 @@ def load_cases(path: Path, profile: str = "default") -> list[EvalCase]:
                 expected=expected,
                 expected_facts=expected_facts,
                 chunks=list(chunks),
+                reference_contexts=list(reference_contexts),
                 settings=dict(settings),
                 metadata=metadata,
             )

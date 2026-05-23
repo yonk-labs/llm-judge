@@ -1,9 +1,9 @@
 from llm_judge.models import EvalCase
 from llm_judge.config import load_run_config
-from llm_judge.engine import evaluate_case, evaluate_cases, score_with_judges
+from llm_judge.engine import evaluate_case, evaluate_cases, generate_reference_with_providers, score_with_judges
 from llm_judge.io import load_cases
 from llm_judge.providers import LLMProvider, LLMResponse, build_provider
-from llm_judge.scorers import generate_answer, llm_score
+from llm_judge.scorers import generate_answer, generate_reference, llm_score
 from llm_judge.scorers import quick_score
 
 
@@ -182,6 +182,26 @@ class JsonJudgeProvider(LLMProvider):
         )
 
 
+class ReferenceProvider(LLMProvider):
+    name = "reference"
+    model = "reference-model"
+
+    def __init__(self, expected: str = "Grand Rapids, Michigan.") -> None:
+        self.expected = expected
+
+    def complete(self, prompt: str, *, json_mode: bool = False) -> LLMResponse:
+        assert json_mode
+        return LLMResponse(
+            text=(
+                '{"expected":"%s","expected_facts":["Answers at the requested granularity."],'
+                '"acceptable_answers":["Michigan","Grand Rapids"],'
+                '"rationale":"Where-question accepts broader true locations."}'
+            )
+            % self.expected,
+            latency_ms=9,
+        )
+
+
 def test_generate_answer_uses_plain_text_mode() -> None:
     case = EvalCase(case_id="x", question="Q?", answer="", expected="A", chunks=["ctx"])
 
@@ -189,6 +209,38 @@ def test_generate_answer_uses_plain_text_mode() -> None:
 
     assert result.answer == "Generated answer."
     assert result.error is None
+
+
+def test_generate_reference_uses_oracle_context() -> None:
+    case = EvalCase(
+        case_id="birthplace",
+        question="Where was Matt born?",
+        answer="",
+        expected="",
+        chunks=["retrieved snippet"],
+        reference_contexts=["Matt was born at St Mary's Hospital in Grand Rapids, Michigan."],
+    )
+
+    result = generate_reference(case, ReferenceProvider())
+
+    assert result.expected == "Grand Rapids, Michigan."
+    assert result.acceptable_answers == ["Michigan", "Grand Rapids"]
+    assert result.expected_facts == ["Answers at the requested granularity."]
+
+
+def test_quick_score_accepts_generated_reference_variants() -> None:
+    case = EvalCase(
+        case_id="birthplace",
+        question="Where was Matt born?",
+        answer="Michigan.",
+        expected="St Mary's Hospital in Grand Rapids, Michigan.",
+        metadata={"acceptable_answers": ["Michigan", "Grand Rapids"]},
+    )
+
+    result = quick_score(case)
+
+    assert result.verdict == "CORRECT"
+    assert result.raw["expected_variant"] == "Michigan"
 
 
 def test_llm_score_returns_error_on_unparseable_json() -> None:
@@ -224,6 +276,45 @@ def test_evaluate_cases_generates_missing_answer_and_resumes(tmp_path) -> None:
         resume=True,
     )
     assert rows2 == rows
+
+
+def test_evaluate_case_can_generate_expected_then_answer() -> None:
+    case = EvalCase(
+        case_id="birthplace",
+        question="Where was Matt born?",
+        answer="",
+        expected="",
+        chunks=["Grand Rapids is in the retrieved chunk."],
+        reference_contexts=["Matt was born at St Mary's Hospital in Grand Rapids, Michigan."],
+    )
+
+    judged_case, decision = evaluate_case(
+        case,
+        mode="quick",
+        synonyms={},
+        answer_provider=PlainProvider(),
+        reference_provider=ReferenceProvider(),
+        generate_missing_answer=True,
+        generate_missing_expected=True,
+    )
+
+    assert judged_case.expected == "Grand Rapids, Michigan."
+    assert judged_case.answer == "Generated answer."
+    assert "acceptable_answers" in judged_case.metadata
+    assert decision.verdict in {"CORRECT", "PARTIAL", "INCORRECT"}
+
+
+def test_generate_reference_with_multiple_providers_keeps_variants() -> None:
+    case = EvalCase(case_id="x", question="Where?", answer="", expected="", chunks=["ctx"])
+
+    result = generate_reference_with_providers(
+        case,
+        [ReferenceProvider("Grand Rapids, Michigan."), ReferenceProvider("St Mary's Hospital.")],
+    )
+
+    assert result.provider == "reference-ensemble"
+    assert "Grand Rapids, Michigan." in result.acceptable_answers
+    assert "St Mary's Hospital." in result.acceptable_answers
 
 
 def test_score_with_three_judges_uses_majority() -> None:
@@ -278,6 +369,28 @@ judges:
         load_run_config(path)
     except ValueError as exc:
         assert "at most 3 judges" in str(exc)
+    else:
+        raise AssertionError("expected config validation failure")
+
+
+def test_yaml_config_rejects_more_than_three_references(tmp_path) -> None:
+    path = tmp_path / "run.yaml"
+    path.write_text(
+        """
+input: cases.jsonl
+references:
+  - provider: mock
+  - provider: mock
+  - provider: mock
+  - provider: mock
+""",
+        encoding="utf-8",
+    )
+
+    try:
+        load_run_config(path)
+    except ValueError as exc:
+        assert "at most 3 references" in str(exc)
     else:
         raise AssertionError("expected config validation failure")
 

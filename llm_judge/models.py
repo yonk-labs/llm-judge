@@ -44,6 +44,9 @@ class EvalCase:
         Optional required facts that should be covered by the answer.
     chunks:
         Retrieved chunks, summaries, or evidence supplied to the answer/judge.
+    reference_contexts:
+        Full/oracle context used to synthesize a missing gold/reference answer.
+        Falls back to ``chunks`` when empty.
     settings:
         Benchmark settings that should appear in audits, such as mode/config labels.
     metadata:
@@ -55,6 +58,7 @@ class EvalCase:
     expected: str
     expected_facts: list[str] = field(default_factory=list)
     chunks: list[Any] = field(default_factory=list)
+    reference_contexts: list[Any] = field(default_factory=list)
     settings: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -63,6 +67,20 @@ class EvalCase:
 class AnswerDecision:
     """Result of the optional answer-generation step."""
     answer: str
+    rationale: str = ""
+    latency_ms: int = 0
+    provider: str = ""
+    model: str = ""
+    raw: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+
+
+@dataclass
+class ReferenceDecision:
+    """Result of generating a missing gold/reference answer from oracle context."""
+    expected: str
+    expected_facts: list[str] = field(default_factory=list)
+    acceptable_answers: list[str] = field(default_factory=list)
     rationale: str = ""
     latency_ms: int = 0
     provider: str = ""

@@ -8,7 +8,7 @@ from collections import Counter
 from difflib import SequenceMatcher
 from typing import Any
 
-from .models import AnswerDecision, EvalCase, JudgeDecision, normalize_verdict
+from .models import AnswerDecision, EvalCase, JudgeDecision, ReferenceDecision, normalize_verdict
 from .providers import LLMProvider
 
 STOPWORDS = {
@@ -137,11 +137,24 @@ def quick_score(case: EvalCase, synonyms: dict[str, list[str]] | None = None) ->
     """Score an answer with deterministic, paraphrase-tolerant heuristics."""
     start = time.perf_counter()
     synonyms = synonyms or BUILTIN_SYNONYMS
-    expected_tokens = tokens(case.expected)
+    acceptable = case.metadata.get("acceptable_answers") or case.metadata.get("reference_generation", {}).get("acceptable_answers", [])
+    variants = [case.expected, *[str(item) for item in acceptable]]
+    decisions = [_quick_score_variant(case, expected, synonyms) for expected in variants if str(expected).strip()]
+    if not decisions:
+        return JudgeDecision.error("no expected answer available for quick scoring")
+    decision = max(decisions, key=lambda item: item.score)
+    decision.latency_ms = int((time.perf_counter() - start) * 1000)
+    if decision.raw.get("expected_variant") and decision.raw["expected_variant"] != case.expected:
+        decision.rationale = f"Matched acceptable answer variant: {decision.raw['expected_variant']}. {decision.rationale}"
+    return decision
+
+
+def _quick_score_variant(case: EvalCase, expected: str, synonyms: dict[str, list[str]]) -> JudgeDecision:
+    expected_tokens = tokens(expected)
     answer_tokens = tokens(case.answer)
     chunk_text = "\n".join(str(chunk) for chunk in case.chunks)
     chunk_tokens = tokens(chunk_text)
-    expected_phrases = phrase_candidates(case.expected)
+    expected_phrases = phrase_candidates(expected)
 
     supported = [phrase for phrase in expected_phrases if _term_present(phrase, case.answer, synonyms)]
     missing = [phrase for phrase in expected_phrases[:12] if phrase not in supported]
@@ -157,7 +170,7 @@ def quick_score(case: EvalCase, synonyms: dict[str, list[str]] | None = None) ->
     if expected_tokens:
         token_coverage = sum(1 for token in set(expected_tokens) if token in answer_token_set) / len(set(expected_tokens))
     semantic_overlap = cosine_similarity(expected_tokens, answer_tokens)
-    fuzzy = SequenceMatcher(None, normalize(case.expected), normalize(case.answer)).ratio()
+    fuzzy = SequenceMatcher(None, normalize(expected), normalize(case.answer)).ratio()
     phrase_score = len(supported) / max(1, min(12, len(expected_phrases)))
     retrieval_score = cosine_similarity(expected_tokens, chunk_tokens)
     if lead_alias_score and retrieval_score >= 0.55:
@@ -176,7 +189,6 @@ def quick_score(case: EvalCase, synonyms: dict[str, list[str]] | None = None) ->
         verdict = "INCORRECT"
     if verdict == "CORRECT":
         missing = []
-    latency_ms = int((time.perf_counter() - start) * 1000)
     rationale = (
         f"Quick scorer used token coverage={token_coverage:.2f}, "
         f"semantic overlap={semantic_overlap:.2f}, fuzzy={fuzzy:.2f}, "
@@ -190,7 +202,7 @@ def quick_score(case: EvalCase, synonyms: dict[str, list[str]] | None = None) ->
         supported=supported[:12],
         retrieval_score=round(retrieval_score, 3),
         answer_score=round(score, 3),
-        latency_ms=latency_ms,
+        raw={"expected_variant": expected},
     )
 
 
@@ -199,11 +211,15 @@ def judge_prompt(case: EvalCase) -> str:
     chunks = "\n\n".join(f"[{index + 1}] {chunk}" for index, chunk in enumerate(case.chunks))
     settings = json.dumps(case.settings, ensure_ascii=False, indent=2, sort_keys=True)
     expected_facts = "\n".join(f"- {fact}" for fact in case.expected_facts) or "None supplied."
+    acceptable = case.metadata.get("acceptable_answers") or case.metadata.get("reference_generation", {}).get("acceptable_answers", [])
+    acceptable_answers = "\n".join(f"- {item}" for item in acceptable) or "None supplied."
     return f"""You are judging a RAG benchmark answer. Be fair and paraphrase-tolerant.
 
 Do not require exact wording. Treat abbreviations, aliases, synonyms, reordered facts, and partial case names as equivalent when they clearly identify the same fact. Example: "Bostock" can satisfy "Bostock v. Clayton County" if the context makes the reference unambiguous.
 
-Grade against the expected answer and the retrieved chunks. Penalize hallucinated contradictions. Do not penalize missing nice-to-have details unless they are necessary to answer the question.
+Grade against the question, expected answer, expected required facts, acceptable answers, and retrieved chunks. Penalize hallucinated contradictions. Do not penalize missing nice-to-have details unless they are necessary to answer the question.
+
+Use the granularity requested by the question. If the question broadly asks "where", an answer may be correct when it gives a true state, city, or specific site that answers the location. If the question asks for specific fields such as "city and hospital", require those fields. Required facts override this broad-location leniency.
 
 Return only JSON with this schema:
 {{
@@ -225,6 +241,9 @@ Expected answer:
 
 Expected required facts:
 {expected_facts}
+
+Acceptable answers or aliases:
+{acceptable_answers}
 
 Retrieved chunks:
 {chunks}
@@ -250,6 +269,40 @@ Question:
 
 Retrieved context:
 {chunks}
+
+Settings:
+{settings}
+"""
+
+
+def reference_prompt(case: EvalCase) -> str:
+    """Build the oracle-context prompt used to synthesize missing reference answers."""
+    source = case.reference_contexts or case.chunks
+    contexts = "\n\n".join(f"[{index + 1}] {chunk}" for index, chunk in enumerate(source))
+    settings = json.dumps(case.settings, ensure_ascii=False, indent=2, sort_keys=True)
+    return f"""Create a benchmark reference answer from the full/oracle context.
+
+Return only JSON with this schema:
+{{
+  "expected": "concise reference answer",
+  "expected_facts": ["facts that are strictly required by the question"],
+  "acceptable_answers": ["semantically acceptable shorter or alternate answers"],
+  "rationale": "short explanation of answer granularity"
+}}
+
+Rules:
+- Use only the supplied full/oracle context.
+- Match the question's requested granularity.
+- Do not make every detail in the context mandatory.
+- If the question asks broadly, list broader true answers as acceptable aliases.
+- If the question asks for specific fields, make those fields required facts.
+- If the context is insufficient, set expected to "Insufficient information." and explain why.
+
+Question:
+{case.question}
+
+Full/oracle context:
+{contexts}
 
 Settings:
 {settings}
@@ -292,6 +345,52 @@ def generate_answer(case: EvalCase, provider: LLMProvider) -> AnswerDecision:
         provider=provider.name,
         model=provider.model,
         raw={"usage": response.usage},
+    )
+
+
+def generate_reference(case: EvalCase, provider: LLMProvider, *, parse_retries: int = 1) -> ReferenceDecision:
+    """Generate a missing gold/reference answer from full/oracle context."""
+    start = time.perf_counter()
+    prompt = reference_prompt(case)
+    try:
+        for attempt in range(parse_retries + 1):
+            response = provider.complete(prompt, json_mode=True)
+            try:
+                parsed = _extract_json(response.text)
+                break
+            except (json.JSONDecodeError, ValueError) as exc:
+                if attempt >= parse_retries:
+                    raise exc
+                prompt = (
+                    "Return only valid JSON matching the requested reference-answer schema. "
+                    "Do not include markdown fences or commentary.\n\n"
+                    f"Invalid prior response:\n{response.text}\n\nOriginal task:\n{reference_prompt(case)}"
+                )
+        else:
+            parsed = {}
+    except Exception as exc:
+        latency_ms = int((time.perf_counter() - start) * 1000)
+        return ReferenceDecision(
+            expected="",
+            rationale=f"reference generation failed: {exc}",
+            latency_ms=latency_ms,
+            provider=provider.name,
+            model=provider.model,
+            error=str(exc),
+        )
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    expected = str(parsed.get("expected") or "").strip()
+    facts = parsed.get("expected_facts", [])
+    acceptable = parsed.get("acceptable_answers", [])
+    return ReferenceDecision(
+        expected=expected,
+        expected_facts=[str(item) for item in facts] if isinstance(facts, list) else [str(facts)],
+        acceptable_answers=[str(item) for item in acceptable] if isinstance(acceptable, list) else [str(acceptable)],
+        rationale=str(parsed.get("rationale") or ""),
+        latency_ms=latency_ms,
+        provider=provider.name,
+        model=provider.model,
+        raw={"usage": getattr(response, "usage", {})},
     )
 
 

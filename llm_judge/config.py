@@ -30,6 +30,15 @@ def load_run_config(path: Path | None) -> dict[str, Any]:
         for index, judge in enumerate(judges, 1):
             if not isinstance(judge, dict):
                 raise ValueError(f"YAML judge #{index} must be a mapping")
+    references = data.get("references")
+    if references is not None:
+        if not isinstance(references, list):
+            raise ValueError("YAML 'references' must be a list")
+        if len(references) > 3:
+            raise ValueError("YAML config supports at most 3 references")
+        for index, reference in enumerate(references, 1):
+            if not isinstance(reference, dict):
+                raise ValueError(f"YAML reference #{index} must be a mapping")
     return data
 
 
@@ -59,6 +68,22 @@ def judge_sections(config: dict[str, Any]) -> list[dict[str, Any]]:
     if len(judges) > 3:
         raise ValueError("YAML config supports at most 3 judges")
     return judges
+
+
+def reference_sections(config: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return normalized reference/gold generator sections."""
+    references = config.get("references")
+    if references is not None:
+        if len(references) > 3:
+            raise ValueError("YAML config supports at most 3 references")
+        return references
+    for key in ("expected", "gold", "reference"):
+        single = config.get(key)
+        if single is not None:
+            if not isinstance(single, dict):
+                raise ValueError(f"YAML '{key}' must be a mapping")
+            return [single]
+    return []
 
 
 def pick(cli_value: Any, config: dict[str, Any], key: str, default: Any = None) -> Any:

@@ -38,6 +38,7 @@ Recognized aliases:
 - Required facts: `required_facts`, `expected_facts`
 - Answer: `answer`, `actual`, `output`, `llm_answer`, `response`
 - Chunks: `chunks`, `contexts`, `retrieved_chunks`, `retrieved_contexts`
+- Full/oracle context for reference generation: `reference_context`, `reference_contexts`, `oracle_context`, `full_context`, `full_data`
 
 ## Quick Start
 
@@ -153,6 +154,25 @@ python3 -m llm_judge evaluate \
   --out .llm-judge-runs/chunkshop-e1e8
 ```
 
+Baseline/reference generation when no gold answer exists:
+
+```bash
+python3 -m llm_judge evaluate \
+  --input cases-with-full-context.jsonl \
+  --generate-expected \
+  --expected-provider openai-compatible \
+  --expected-model gpt-4.1-mini \
+  --generate-answer \
+  --answer-provider openai-compatible \
+  --answer-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/baseline
+```
+
+Use this when the benchmark has a question and full/oracle source data but no trusted `gold_answer`. The reference generator writes a concise expected answer, strictly required facts, and acceptable answer variants. For broad questions like "Where was Matt born?", variants such as "Michigan", "Grand Rapids", or a specific hospital can be accepted when the source supports them. For specific questions like "What city and hospital was he born at?", the generated required facts should require both fields.
+
 YAML setup with up to three LLM judges:
 
 ```bash
@@ -162,7 +182,7 @@ python3 -m llm_judge evaluate --config examples/three_judges.yaml
 Use [examples/llm_config.sample.yaml](examples/llm_config.sample.yaml) as the copyable real-provider template.
 Use [examples/local_two_judges.yaml](examples/local_two_judges.yaml) for the local `192.168.1.193:8000` / `192.168.1.133:8000` two-judge setup.
 
-The YAML config can define one answer model and up to three judges. Multiple judges are aggregated into one final decision while preserving each individual judge result in `raw.individual_judges`.
+The YAML config can define one answer model, up to three reference/gold generators, and up to three judges. Multiple judges are aggregated into one final decision while preserving each individual judge result in `raw.individual_judges`.
 
 ## API Keys
 

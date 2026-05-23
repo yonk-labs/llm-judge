@@ -19,6 +19,11 @@ llm_threshold: 0.72
 # Generate an answer from retrieved context when the input case has no answer.
 generate_answer: true
 
+# Generate a gold/reference answer from full/oracle context when no expected
+# answer is present. Supported input fields include reference_context,
+# oracle_context, full_context, and full_data.
+generate_expected: false
+
 # Long-run controls.
 concurrency: 4
 cache_dir: .llm-judge-cache
@@ -36,6 +41,19 @@ answer:
   model: gpt-4.1-mini
   base_url: https://api.openai.com/v1
   api_key_env: OPENAI_API_KEY
+
+# Optional: define one to three reference/gold generators. Use this when some
+# cases do not have benchmark-provided gold answers. Multiple generators collect
+# acceptable semantic variants; they are not byte-for-byte answer requirements.
+# references:
+#   - provider: openai-compatible
+#     model: gpt-4.1-mini
+#     base_url: https://api.openai.com/v1
+#     api_key_env: OPENAI_API_KEY
+#   - provider: openrouter
+#     model: anthropic/claude-3.5-sonnet
+#     base_url: https://openrouter.ai/api/v1
+#     api_key_env: OPENROUTER_API_KEY
 
 # Define one to three judges. The final decision is aggregated, and each
 # individual judge result is preserved in results.jsonl under raw.individual_judges.

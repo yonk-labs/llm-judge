@@ -72,7 +72,28 @@ llm-judge evaluate \
   --out .llm-judge-runs/generated
 ```
 
-## 6. Use YAML
+## 6. Generate Missing Gold Answers
+
+If your benchmark does not have a trusted `gold_answer`, provide full/oracle context in fields such as `reference_context`, `oracle_context`, or `full_context`, then generate the reference before judging:
+
+```bash
+llm-judge evaluate \
+  --input cases.jsonl \
+  --generate-expected \
+  --expected-provider openai-compatible \
+  --expected-model gpt-4.1-mini \
+  --generate-answer \
+  --answer-provider openai-compatible \
+  --answer-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/baseline
+```
+
+The generated reference includes required facts and acceptable answer variants. The judge uses the question's requested granularity: broad "where" questions can accept state/city/site answers when true, while "city and hospital" questions require both.
+
+## 7. Use YAML
 
 Copy the sample config:
 
@@ -83,7 +104,7 @@ llm-judge evaluate --config run.yaml
 
 In YAML, use `api_key_env: OPENAI_API_KEY` or another env var name. Do not put the actual key in the YAML file. Local OpenAI-compatible servers that do not require auth can leave `api_key_env` out.
 
-## 7. Inspect Results
+## 8. Inspect Results
 
 Open:
 

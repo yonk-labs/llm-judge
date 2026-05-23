@@ -53,6 +53,8 @@ Use environment variables for provider keys. Pass env var names with `--api-key-
    - `accurate`: LLM-as-judge, best for final reports and disputed results.
    - `dual`: quick first, LLM judge only where quick score is below threshold.
 
+   If the benchmark has no gold/reference answer, generate the reference first from full/oracle data with `--generate-expected` / `generate_expected: true`. This is separate from `--generate-answer`, which generates the candidate answer from retrieved chunks.
+
 3. Choose input profile:
    - `default`: flexible project-local schema.
    - `ragas`: `user_input`, `response`, `reference`, `retrieved_contexts`/`contexts`.
@@ -88,6 +90,25 @@ python3 -m llm_judge evaluate \
   --resume \
   --out .llm-judge-runs/chunkshop-e1e8
 ```
+
+For baseline/reference generation when no gold exists:
+
+```bash
+python3 -m llm_judge evaluate \
+  --input path/to/cases.jsonl \
+  --generate-expected \
+  --expected-provider openai-compatible \
+  --expected-model gpt-4.1-mini \
+  --generate-answer \
+  --answer-provider openai-compatible \
+  --answer-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/baseline
+```
+
+Use `reference_context`, `oracle_context`, `full_context`, or `full_data` for the complete source data. The generated reference must match the question granularity: a broad "where" question can accept true state/city/site variants, while a "city and hospital" question requires both fields.
 
 For a YAML setup with up to three judges:
 
