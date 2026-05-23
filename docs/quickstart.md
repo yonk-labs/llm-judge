@@ -38,6 +38,8 @@ llm-judge evaluate \
 
 ## 4. Run Accurate Mode
 
+Hosted providers use API keys from environment variables. `llm-judge` intentionally accepts the env var name, not the raw key value, so secrets do not land in YAML, shell history, or benchmark artifacts.
+
 ```bash
 export OPENAI_API_KEY=...
 
@@ -78,6 +80,8 @@ Copy the sample config:
 cp examples/llm_config.sample.yaml run.yaml
 llm-judge evaluate --config run.yaml
 ```
+
+In YAML, use `api_key_env: OPENAI_API_KEY` or another env var name. Do not put the actual key in the YAML file. Local OpenAI-compatible servers that do not require auth can leave `api_key_env` out.
 
 ## 7. Inspect Results
 

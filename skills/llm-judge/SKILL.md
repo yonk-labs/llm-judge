@@ -24,9 +24,21 @@ curl -L https://raw.githubusercontent.com/yonk-labs/llm-judge/main/skills/llm-ju
   -o ~/.codex/skills/llm-judge/SKILL.md
 ```
 
+Install this skill into Claude:
+
+```bash
+mkdir -p ~/.claude/skills/llm-judge
+curl -L https://raw.githubusercontent.com/yonk-labs/llm-judge/main/skills/llm-judge/SKILL.md \
+  -o ~/.claude/skills/llm-judge/SKILL.md
+```
+
 ## Core Rule
 
 Never rely only on exact substring matching for answer correctness. Grade against the expected answer, retrieved chunks, and question intent. Accept paraphrases, abbreviations, aliases, synonyms, reordered facts, and partial names when the reference is unambiguous. Penalize contradictions and missing required facts.
+
+## API Key Rule
+
+Use environment variables for provider keys. Pass env var names with `--api-key-env` / `--answer-api-key-env` or YAML `api_key_env`. Do not put raw API key values in prompts, configs, trace files, shell history, or committed docs. Local OpenAI-compatible endpoints can omit `api_key_env` when they do not require authentication.
 
 ## Workflow
 

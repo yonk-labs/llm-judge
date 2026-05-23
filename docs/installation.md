@@ -38,6 +38,25 @@ After installation, use it in a Codex session with:
 $llm-judge evaluate this benchmark run and write audits
 ```
 
+## Claude Skill
+
+Install the same bundled skill for Claude:
+
+```bash
+mkdir -p ~/.claude/skills/llm-judge
+curl -L https://raw.githubusercontent.com/yonk-labs/llm-judge/main/skills/llm-judge/SKILL.md \
+  -o ~/.claude/skills/llm-judge/SKILL.md
+```
+
+## API Keys
+
+The tool accepts API keys by environment variable name:
+
+- CLI: `--api-key-env OPENAI_API_KEY` and `--answer-api-key-env OPENAI_API_KEY`
+- YAML: `api_key_env: OPENAI_API_KEY`
+
+Raw key values are intentionally not accepted in CLI flags or YAML. Store keys in your shell, CI secret store, or process manager environment. Local OpenAI-compatible endpoints can omit `api_key_env` when the server does not require authentication.
+
 ## Requirements
 
 - Python 3.10+

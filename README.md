@@ -164,6 +164,12 @@ Use [examples/local_two_judges.yaml](examples/local_two_judges.yaml) for the loc
 
 The YAML config can define one answer model and up to three judges. Multiple judges are aggregated into one final decision while preserving each individual judge result in `raw.individual_judges`.
 
+## API Keys
+
+`llm-judge` accepts API keys through environment variables. In CLI mode, pass the variable name with `--api-key-env` for judges and `--answer-api-key-env` for answer generation. In YAML, use `api_key_env`.
+
+There is intentionally no `--api-key` flag and no YAML field for a literal key value. This keeps secrets out of shell history, config files, benchmark artifacts, and git. Local OpenAI-compatible endpoints, such as private LAN vLLM/llama.cpp servers, can omit `api_key_env` when they do not require authentication.
+
 Accurate judge using any OpenAI-compatible endpoint:
 
 ```bash
@@ -203,10 +209,20 @@ Verdicts are normalized internally. `WRONG`, `FAIL`, and `FAILED` map to `INCORR
 
 ## Codex Skill
 
-This repo includes an installable Codex skill at [skills/llm-judge/SKILL.md](skills/llm-judge/SKILL.md).
+This repo includes an installable agent skill at [skills/llm-judge/SKILL.md](skills/llm-judge/SKILL.md).
+
+Codex:
 
 ```bash
 mkdir -p ~/.codex/skills/llm-judge
 curl -L https://raw.githubusercontent.com/yonk-labs/llm-judge/main/skills/llm-judge/SKILL.md \
   -o ~/.codex/skills/llm-judge/SKILL.md
+```
+
+Claude:
+
+```bash
+mkdir -p ~/.claude/skills/llm-judge
+curl -L https://raw.githubusercontent.com/yonk-labs/llm-judge/main/skills/llm-judge/SKILL.md \
+  -o ~/.claude/skills/llm-judge/SKILL.md
 ```

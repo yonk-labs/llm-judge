@@ -70,6 +70,21 @@ Default API key env vars:
 
 Use `--api-key-env` or `--answer-api-key-env` to override.
 
+API keys are accepted by environment variable name only. There is intentionally no `--api-key` flag, and YAML configs should not contain literal secret values. Set the key in your shell or CI secret store, then point `llm-judge` at that variable:
+
+```bash
+export OPENAI_API_KEY=...
+llm-judge evaluate \
+  --input cases.jsonl \
+  --mode accurate \
+  --provider openai-compatible \
+  --base-url https://api.openai.com/v1 \
+  --model gpt-4.1-mini \
+  --api-key-env OPENAI_API_KEY
+```
+
+Local OpenAI-compatible endpoints can omit `--api-key-env` when the endpoint does not require authentication. Hosted OpenAI/OpenRouter/Anthropic/Gemini providers require a key in the configured env var.
+
 ## YAML Configuration
 
 `--config` values act as defaults. Explicit CLI flags override matching top-level YAML values. For a `judges:` list, provider settings come from each list item.
