@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-judge"
+version = "0.1.0"
+description = "Portable RAG and LLM benchmark judging CLI with fair audits and provider-agnostic judges."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Yonk" }]
+dependencies = ["PyYAML>=6"]
+
+[project.urls]
+Homepage = "https://github.com/yonk-labs/llm-judge"
+Repository = "https://github.com/yonk-labs/llm-judge"
+Documentation = "https://github.com/yonk-labs/llm-judge/tree/main/docs"
+
+[project.scripts]
+llm-judge = "llm_judge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["llm_judge*"]

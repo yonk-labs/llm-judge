@@ -1,0 +1,88 @@
+# Quickstart
+
+This guide gets `llm-judge` running in a benchmark project with local audit output.
+
+## 1. Install
+
+From GitHub:
+
+```bash
+python3 -m pip install "llm-judge @ git+https://github.com/yonk-labs/llm-judge.git"
+```
+
+For local development:
+
+```bash
+git clone https://github.com/yonk-labs/llm-judge.git
+cd llm-judge
+python3 -m pip install -e .
+```
+
+## 2. Prepare Cases
+
+Create `cases.jsonl`:
+
+```json
+{"id":"q1","question":"What case did the context mention?","gold_answer":"Bostock v. Clayton County","required_facts":["The answer identifies Bostock v. Clayton County."],"retrieved_chunks":["The decision in Bostock v. Clayton County is discussed."],"config_label":"E1"}
+```
+
+## 3. Run Quick Mode
+
+```bash
+llm-judge evaluate \
+  --input cases.jsonl \
+  --profile chunkshop-e1e8 \
+  --mode quick \
+  --out .llm-judge-runs/quick
+```
+
+## 4. Run Accurate Mode
+
+```bash
+export OPENAI_API_KEY=...
+
+llm-judge evaluate \
+  --input cases.jsonl \
+  --profile chunkshop-e1e8 \
+  --mode accurate \
+  --provider openai-compatible \
+  --base-url https://api.openai.com/v1 \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/accurate
+```
+
+## 5. Generate Missing Answers
+
+If your benchmark has retrieved chunks but no generated answer:
+
+```bash
+llm-judge evaluate \
+  --input cases.jsonl \
+  --profile chunkshop-e1e8 \
+  --generate-answer \
+  --answer-provider openai-compatible \
+  --answer-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --cache-dir .llm-judge-cache \
+  --resume \
+  --out .llm-judge-runs/generated
+```
+
+## 6. Use YAML
+
+Copy the sample config:
+
+```bash
+cp examples/llm_config.sample.yaml run.yaml
+llm-judge evaluate --config run.yaml
+```
+
+## 7. Inspect Results
+
+Open:
+
+- `.llm-judge-runs/<run>/summary.md`
+- `.llm-judge-runs/<run>/results.jsonl`
+- `.llm-judge-runs/<run>/cases/<case-id>.md`

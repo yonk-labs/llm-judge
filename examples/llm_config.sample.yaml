@@ -1,0 +1,55 @@
+# Sample llm-judge run configuration.
+#
+# Copy this file, set the model/provider values you want, then run:
+#
+#   python3 -m llm_judge evaluate --config path/to/your-config.yaml
+#
+# Environment variables are read at runtime. Do not put API keys in this file.
+
+input: examples/chunkshop_e1e8.jsonl
+profile: chunkshop-e1e8
+out: .llm-judge-runs/sample
+
+# quick: heuristic only
+# accurate: LLM judge only
+# dual: quick first, LLM judge when quick score is below llm_threshold
+mode: accurate
+llm_threshold: 0.72
+
+# Generate an answer from retrieved context when the input case has no answer.
+generate_answer: true
+
+# Long-run controls.
+concurrency: 4
+cache_dir: .llm-judge-cache
+resume: true
+timeout: 120
+retries: 2
+parse_retries: 1
+temperature: 0.0
+
+# Optional synonym map for quick/dual scoring.
+# synonyms: path/to/synonyms.json
+
+answer:
+  provider: openai-compatible
+  model: gpt-4.1-mini
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
+
+# Define one to three judges. The final decision is aggregated, and each
+# individual judge result is preserved in results.jsonl under raw.individual_judges.
+judges:
+  - provider: openai-compatible
+    model: gpt-4.1-mini
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+
+  - provider: openrouter
+    model: anthropic/claude-3.5-sonnet
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+
+  - provider: ollama
+    model: qwen2.5:14b
+    base_url: http://localhost:11434

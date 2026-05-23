@@ -1,0 +1,35 @@
+# Local two-judge setup for OpenAI-compatible servers.
+#
+# Checked from this workspace:
+# - http://192.168.1.193:8000/v1/models is reachable and reports:
+#   Intel/Qwen3-Coder-Next-int4-AutoRound
+# - http://192.168.1.133:8000/v1/models reports:
+#   cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+#
+# Run:
+#   python3 -m llm_judge evaluate --config examples/local_two_judges.yaml
+
+input: examples/chunkshop_e1e8.jsonl
+profile: chunkshop-e1e8
+out: .llm-judge-runs/local-two-judges
+mode: accurate
+
+# Set this to true if your input records have chunks/context but no answer.
+generate_answer: false
+
+concurrency: 2
+cache_dir: .llm-judge-cache
+resume: true
+timeout: 120
+retries: 2
+parse_retries: 1
+temperature: 0.0
+
+judges:
+  - provider: openai-compatible
+    model: Intel/Qwen3-Coder-Next-int4-AutoRound
+    base_url: http://192.168.1.193:8000/v1
+
+  - provider: openai-compatible
+    model: cyankiwi/gemma-4-26B-A4B-it-AWQ-4bit
+    base_url: http://192.168.1.133:8000/v1

@@ -1,0 +1,11 @@
+.llm-judge-runs/
+.llm-judge-cache*/
+audit-output/
+skill-output/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+dist/
+build/
+*.egg-info/

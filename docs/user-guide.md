@@ -1,0 +1,127 @@
+# User Guide
+
+## Purpose
+
+`llm-judge` is a local-first utility for evaluating RAG and benchmark runs. It can judge existing answers, generate missing answers from retrieved context, and write inspectable per-case audits.
+
+## Core Workflow
+
+1. Produce cases as JSONL, JSON, YAML, or CSV.
+2. Pick an input `--profile`.
+3. Pick a mode:
+   - `quick`: deterministic heuristic smoke test.
+   - `accurate`: LLM-as-judge for final/disputed runs.
+   - `dual`: quick first, then LLM judge below `--llm-threshold`.
+4. Run the CLI.
+5. Inspect `summary.md`, `results.jsonl`, and `cases/*.md`.
+
+## Minimal Case
+
+```json
+{"id":"q1","question":"What case?","answer":"Bostock.","expected":"Bostock v. Clayton County","chunks":["Bostock v. Clayton County is discussed."],"settings":{"experiment":"E1"}}
+```
+
+## Judging Existing Answers
+
+```bash
+python3 -m llm_judge evaluate \
+  --input cases.jsonl \
+  --profile default \
+  --mode accurate \
+  --provider openai-compatible \
+  --base-url https://api.openai.com/v1 \
+  --model gpt-4.1-mini \
+  --out .llm-judge-runs/run-001
+```
+
+## Generating Answers Before Judging
+
+Use this when your benchmark has questions and retrieved chunks but no generated answer yet.
+
+```bash
+python3 -m llm_judge evaluate \
+  --input chunkshop-e1e8.jsonl \
+  --profile chunkshop-e1e8 \
+  --generate-answer \
+  --answer-provider openai-compatible \
+  --answer-model gpt-4.1-mini \
+  --mode accurate \
+  --provider openai-compatible \
+  --model gpt-4.1-mini \
+  --concurrency 8 \
+  --cache-dir .llm-judge-cache \
+  --resume \
+  --out .llm-judge-runs/chunkshop-e1e8
+```
+
+## YAML Setup With Up To Three Judges
+
+Create a run file:
+
+```yaml
+input: examples/chunkshop_e1e8.jsonl
+profile: chunkshop-e1e8
+out: .llm-judge-runs/three-judges
+mode: accurate
+generate_answer: true
+concurrency: 3
+cache_dir: .llm-judge-cache
+resume: true
+
+answer:
+  provider: openai-compatible
+  model: gpt-4.1-mini
+  base_url: https://api.openai.com/v1
+  api_key_env: OPENAI_API_KEY
+
+judges:
+  - provider: openai-compatible
+    model: gpt-4.1-mini
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+  - provider: ollama
+    model: qwen2.5:14b
+    base_url: http://localhost:11434
+  - provider: openrouter
+    model: anthropic/claude-3.5-sonnet
+    api_key_env: OPENROUTER_API_KEY
+```
+
+Run it:
+
+```bash
+python3 -m llm_judge evaluate --config run.yaml
+```
+
+The final decision aggregates up to three judge verdicts. Individual judge results are preserved in `results.jsonl` under `raw.individual_judges`.
+
+A copyable real-provider template is available at `examples/llm_config.sample.yaml`.
+
+## Long Runs
+
+For sweeps with hundreds or thousands of cases:
+
+- Use `--cache-dir` to avoid paying twice for identical prompts.
+- Use `--resume` so existing case IDs in `results.jsonl` are skipped.
+- Use `--concurrency` for parallel calls.
+- Keep `--retries` above zero for transient HTTP failures.
+- Keep `--parse-retries` above zero for models that sometimes return malformed JSON.
+
+Provider failures and malformed judge JSON become `ERROR` rows. They do not abort the run.
+
+## Output Files
+
+- `summary.md`: aggregate pass rate, mean score, error count, slowest cases, common missing facts.
+- `results.jsonl`: one machine-readable row per case.
+- `cases/<case-id>.md`: full audit with question, settings, chunks, answer, expected answer, supported/missing facts, contradictions, and timing.
+
+## Verdicts
+
+Canonical verdicts:
+
+- `CORRECT`
+- `PARTIAL`
+- `INCORRECT`
+- `ERROR`
+
+Legacy aliases such as `WRONG`, `FAIL`, and `FAILED` normalize to `INCORRECT`.

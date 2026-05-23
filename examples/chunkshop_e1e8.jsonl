@@ -1,0 +1,1 @@
+{"id":"e1-demo","question":"What case did the context mention?","gold_answer":"Bostock v. Clayton County","required_facts":["The answer identifies Bostock v. Clayton County."],"retrieved_chunks":["The decision in Bostock v. Clayton County is discussed."],"config_label":"E1","retrievable":true,"token_counts":{"retrieved_context":9}}

@@ -1,0 +1,1 @@
+{"input":"Based on the context, what was the retention result?","prediction":"The raw retrieval retained 11 out of 16 items.","answers":["11/16"],"context":"The audited run showed raw retrieval had 11/16 relevant items retained.","dataset":"example-long-context"}

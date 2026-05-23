@@ -1,0 +1,23 @@
+input: examples/chunkshop_e1e8.jsonl
+profile: chunkshop-e1e8
+out: .llm-judge-runs/three-judges
+mode: accurate
+generate_answer: true
+concurrency: 3
+cache_dir: .llm-judge-cache
+resume: true
+timeout: 120
+retries: 2
+parse_retries: 1
+
+answer:
+  provider: mock
+  model: mock-answer
+
+judges:
+  - provider: mock
+    model: judge-a
+  - provider: mock
+    model: judge-b
+  - provider: mock
+    model: judge-c
