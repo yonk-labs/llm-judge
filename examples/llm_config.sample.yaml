@@ -32,6 +32,9 @@ timeout: 120
 retries: 2
 parse_retries: 1
 temperature: 0.0
+max_tokens: 1200
+disable_response_format: false
+strict_json_fallback: true
 
 # Optional synonym map for quick/dual scoring.
 # synonyms: path/to/synonyms.json

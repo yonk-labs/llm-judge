@@ -116,6 +116,9 @@ class HTTPProvider(LLMProvider):
         temperature: float = 0.0,
         retries: int = 2,
         retry_base_delay: float = 1.0,
+        max_tokens: int | None = None,
+        disable_response_format: bool = False,
+        strict_json_fallback: bool = True,
     ) -> None:
         self.name = name
         self.model = model
@@ -125,6 +128,9 @@ class HTTPProvider(LLMProvider):
         self.temperature = temperature
         self.retries = retries
         self.retry_base_delay = retry_base_delay
+        self.max_tokens = max_tokens
+        self.disable_response_format = disable_response_format
+        self.strict_json_fallback = strict_json_fallback
 
     def _post(self, url: str, body: dict[str, Any], headers: dict[str, str]) -> LLMResponse:
         payload = json.dumps(body).encode("utf-8")
@@ -173,9 +179,18 @@ class OpenAICompatibleProvider(HTTPProvider):
             "temperature": self.temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
-        if json_mode:
+        if self.max_tokens is not None:
+            body["max_tokens"] = self.max_tokens
+        if json_mode and not self.disable_response_format:
             body["response_format"] = {"type": "json_object"}
-        return self._post(f"{self.base_url}/chat/completions", body, headers)
+        try:
+            return self._post(f"{self.base_url}/chat/completions", body, headers)
+        except LLMProviderError:
+            if not json_mode or self.disable_response_format or not self.strict_json_fallback or "response_format" not in body:
+                raise
+            fallback_body = dict(body)
+            fallback_body.pop("response_format", None)
+            return self._post(f"{self.base_url}/chat/completions", fallback_body, headers)
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         return data["choices"][0]["message"]["content"]
@@ -188,9 +203,18 @@ class OllamaProvider(HTTPProvider):
 
     def complete(self, prompt: str, *, json_mode: bool = False) -> LLMResponse:
         body: dict[str, Any] = {"model": self.model, "prompt": prompt, "stream": False, "options": {"temperature": 0}}
-        if json_mode:
+        if self.max_tokens is not None:
+            body["options"]["num_predict"] = self.max_tokens
+        if json_mode and not self.disable_response_format:
             body["format"] = "json"
-        return self._post(f"{self.base_url}/api/generate", body, {"Content-Type": "application/json"})
+        try:
+            return self._post(f"{self.base_url}/api/generate", body, {"Content-Type": "application/json"})
+        except LLMProviderError:
+            if not json_mode or self.disable_response_format or not self.strict_json_fallback or "format" not in body:
+                raise
+            fallback_body = dict(body)
+            fallback_body.pop("format", None)
+            return self._post(f"{self.base_url}/api/generate", fallback_body, {"Content-Type": "application/json"})
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         return data.get("response", "")
@@ -213,6 +237,8 @@ class AnthropicProvider(HTTPProvider):
             "temperature": self.temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
+        if self.max_tokens is not None:
+            body["max_tokens"] = self.max_tokens
         return self._post(f"{self.base_url}/messages", body, headers)
 
     def _extract_text(self, data: dict[str, Any]) -> str:
@@ -231,9 +257,20 @@ class GeminiProvider(HTTPProvider):
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": self.temperature},
         }
-        if json_mode:
+        if self.max_tokens is not None:
+            body["generationConfig"]["maxOutputTokens"] = self.max_tokens
+        if json_mode and not self.disable_response_format:
             body["generationConfig"]["response_mime_type"] = "application/json"
-        return self._post(f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}", body, headers)
+        try:
+            return self._post(f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}", body, headers)
+        except LLMProviderError:
+            if not json_mode or self.disable_response_format or not self.strict_json_fallback or "response_mime_type" not in body["generationConfig"]:
+                raise
+            fallback_body = dict(body)
+            fallback_config = dict(body["generationConfig"])
+            fallback_config.pop("response_mime_type", None)
+            fallback_body["generationConfig"] = fallback_config
+            return self._post(f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}", fallback_body, headers)
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         candidates = data.get("candidates") or []
@@ -258,6 +295,9 @@ class CachedProvider(LLMProvider):
                 {
                     "provider": self.provider.name,
                     "model": self.provider.model,
+                    "max_tokens": getattr(self.provider, "max_tokens", None),
+                    "disable_response_format": getattr(self.provider, "disable_response_format", None),
+                    "strict_json_fallback": getattr(self.provider, "strict_json_fallback", None),
                     "json_mode": json_mode,
                     "prompt": prompt,
                 },
@@ -283,6 +323,9 @@ def build_provider(
     timeout: float,
     temperature: float,
     retries: int = 2,
+    max_tokens: int | None = None,
+    disable_response_format: bool = False,
+    strict_json_fallback: bool = True,
 ) -> LLMProvider:
     """Build a configured provider from CLI/API parameters."""
     provider = provider.lower()
@@ -294,7 +337,15 @@ def build_provider(
             raise ValueError("--judge-command is required for provider=command")
         return CommandProvider(command, model=model or "command")
     if provider == "ollama":
-        return OllamaProvider(model=model or "qwen2.5:14b", base_url=base_url or "http://localhost:11434", timeout=timeout, retries=retries)
+        return OllamaProvider(
+            model=model or "qwen2.5:14b",
+            base_url=base_url or "http://localhost:11434",
+            timeout=timeout,
+            retries=retries,
+            max_tokens=max_tokens,
+            disable_response_format=disable_response_format,
+            strict_json_fallback=strict_json_fallback,
+        )
     if provider in {"openai", "openai-compatible", "openrouter"}:
         default_url = {
             "openai": "https://api.openai.com/v1",
@@ -315,17 +366,38 @@ def build_provider(
             timeout=timeout,
             temperature=temperature,
             retries=retries,
+            max_tokens=max_tokens,
+            disable_response_format=disable_response_format,
+            strict_json_fallback=strict_json_fallback,
         )
     if provider == "anthropic":
         env = api_key_env or "ANTHROPIC_API_KEY"
         api_key = os.environ.get(env)
         if not api_key:
             raise ValueError(f"Missing API key in ${env}")
-        return AnthropicProvider(model=model or "claude-3-5-sonnet-latest", api_key=api_key, base_url=base_url or "https://api.anthropic.com/v1", timeout=timeout, retries=retries)
+        return AnthropicProvider(
+            model=model or "claude-3-5-sonnet-latest",
+            api_key=api_key,
+            base_url=base_url or "https://api.anthropic.com/v1",
+            timeout=timeout,
+            retries=retries,
+            max_tokens=max_tokens,
+            disable_response_format=disable_response_format,
+            strict_json_fallback=strict_json_fallback,
+        )
     if provider == "gemini":
         env = api_key_env or "GEMINI_API_KEY"
         api_key = os.environ.get(env)
         if not api_key:
             raise ValueError(f"Missing API key in ${env}")
-        return GeminiProvider(model=model or "gemini-2.5-flash", api_key=api_key, base_url=base_url or "https://generativelanguage.googleapis.com/v1beta", timeout=timeout, retries=retries)
+        return GeminiProvider(
+            model=model or "gemini-2.5-flash",
+            api_key=api_key,
+            base_url=base_url or "https://generativelanguage.googleapis.com/v1beta",
+            timeout=timeout,
+            retries=retries,
+            max_tokens=max_tokens,
+            disable_response_format=disable_response_format,
+            strict_json_fallback=strict_json_fallback,
+        )
     raise ValueError(f"Unsupported provider: {provider}")

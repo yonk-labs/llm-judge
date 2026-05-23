@@ -237,13 +237,17 @@ def score_with_judges(
                 "missing": decision.missing,
                 "supported": decision.supported,
                 "contradictions": decision.contradictions,
+                "raw": decision.raw,
             }
             for decision in decisions
         ]
     }
     if not valid:
-        return JudgeDecision.error(
-            "all judges failed",
+        return JudgeDecision(
+            score=0.0,
+            verdict="ERROR",
+            rationale="all judges failed",
+            raw=raw,
             provider="ensemble",
             model=",".join(decision.model for decision in decisions),
             latency_ms=sum(decision.latency_ms for decision in decisions),

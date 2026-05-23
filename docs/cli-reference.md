@@ -26,6 +26,7 @@ python3 -m llm_judge evaluate --input cases.jsonl --mode quick
 | `--input` | path | required | JSONL, JSON, YAML, or CSV input file. |
 | `--profile` | enum | `default` | Input schema profile. Run `profiles` for choices. |
 | `--out` | path | `.llm-judge-runs/<timestamp>` | Output directory. |
+| `--limit` | int | none | Only evaluate the first N normalized cases. Useful for smoke tests. |
 | `--mode` | enum | `quick` | `quick`, `accurate`, or `dual`. |
 | `--synonyms` | path | none | JSON synonym map for quick scoring. |
 | `--provider` | string | `openai-compatible` | Judge provider. |
@@ -53,6 +54,9 @@ python3 -m llm_judge evaluate --input cases.jsonl --mode quick
 | `--retries` | int | `2` | Provider HTTP retry count. |
 | `--timeout` | float | `120.0` | Provider HTTP timeout in seconds. |
 | `--temperature` | float | `0.0` | Provider sampling temperature where supported. |
+| `--max-tokens` | int | provider default | Provider max output tokens where supported. |
+| `--disable-response-format` | flag | false | Do not send provider-native strict JSON knobs such as OpenAI `response_format`. |
+| `--strict-json-fallback`, `--no-strict-json-fallback` | bool | true | Retry JSON-mode calls without strict response-format knobs when the provider rejects them. |
 | `--llm-threshold` | float | `0.72` | In `dual` mode, quick scores below this go to the LLM judge. |
 
 ## Provider Names
@@ -109,6 +113,9 @@ resume: true
 timeout: 120
 retries: 2
 parse_retries: 1
+max_tokens: 1200
+disable_response_format: false
+strict_json_fallback: true
 
 answer:
   provider: openai-compatible
@@ -143,3 +150,20 @@ judges:
 `judges` supports one to three entries. If all judges fail, the final verdict is `ERROR`. If some judges fail, successful judges are still aggregated.
 
 See `examples/llm_config.sample.yaml` for a copyable OpenAI-compatible/OpenRouter/Ollama template.
+
+## Local OpenAI-Compatible No-Key Servers
+
+For vLLM, llama.cpp, LM Studio, or other OpenAI-compatible servers on a private host, omit `api_key_env` when the server does not require auth:
+
+```bash
+llm-judge evaluate \
+  --input examples/rag_eval.jsonl \
+  --mode accurate \
+  --provider openai-compatible \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model local-model-name \
+  --disable-response-format \
+  --max-tokens 1200
+```
+
+The equivalent YAML is in `examples/local_vllm_no_key.yaml`.

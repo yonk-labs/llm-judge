@@ -181,6 +181,7 @@ python3 -m llm_judge evaluate --config examples/three_judges.yaml
 
 Use [examples/llm_config.sample.yaml](examples/llm_config.sample.yaml) as the copyable real-provider template.
 Use [examples/local_two_judges.yaml](examples/local_two_judges.yaml) for the local `192.168.1.193:8000` / `192.168.1.133:8000` two-judge setup.
+Use [examples/local_vllm_no_key.yaml](examples/local_vllm_no_key.yaml) for a first-class local OpenAI-compatible vLLM/llama.cpp-style no-key setup.
 
 The YAML config can define one answer model, up to three reference/gold generators, and up to three judges. Multiple judges are aggregated into one final decision while preserving each individual judge result in `raw.individual_judges`.
 
@@ -189,6 +190,8 @@ The YAML config can define one answer model, up to three reference/gold generato
 `llm-judge` accepts API keys through environment variables. In CLI mode, pass the variable name with `--api-key-env` for judges and `--answer-api-key-env` for answer generation. In YAML, use `api_key_env`.
 
 There is intentionally no `--api-key` flag and no YAML field for a literal key value. This keeps secrets out of shell history, config files, benchmark artifacts, and git. Local OpenAI-compatible endpoints, such as private LAN vLLM/llama.cpp servers, can omit `api_key_env` when they do not require authentication.
+
+For local OpenAI-compatible servers that reject OpenAI JSON mode, use `--disable-response-format` or YAML `disable_response_format: true`. `strict_json_fallback: true` retries JSON-mode calls without provider-native `response_format` when a server rejects it. Use `--max-tokens` / `max_tokens` to cap provider output where supported.
 
 Accurate judge using any OpenAI-compatible endpoint:
 

@@ -59,6 +59,14 @@ The broad birthplace case can give full credit to semantically true variants suc
 llm-judge evaluate --config examples/local_two_judges.yaml
 ```
 
+## Local vLLM/OpenAI-Compatible No-Key Setup
+
+```bash
+llm-judge evaluate --config examples/local_vllm_no_key.yaml
+```
+
+This example omits `api_key_env` and disables provider-native `response_format`, which is often useful for local OpenAI-compatible servers that do not implement strict JSON mode.
+
 ## Three-Judge Setup
 
 ```bash

@@ -63,6 +63,9 @@ judge = build_provider(
     timeout=120.0,
     temperature=0.0,
     retries=2,
+    max_tokens=1200,
+    disable_response_format=False,
+    strict_json_fallback=True,
 )
 
 judge = CachedProvider(judge, Path(".llm-judge-cache"), "judge")

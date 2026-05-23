@@ -1,8 +1,11 @@
+import json
+
 from llm_judge.models import EvalCase
+from llm_judge.cli import main
 from llm_judge.config import load_run_config
 from llm_judge.engine import evaluate_case, evaluate_cases, generate_reference_with_providers, score_with_judges
 from llm_judge.io import load_cases
-from llm_judge.providers import LLMProvider, LLMResponse, build_provider
+from llm_judge.providers import LLMProvider, LLMProviderError, LLMResponse, OpenAICompatibleProvider, build_provider
 from llm_judge.scorers import generate_answer, generate_reference, llm_score
 from llm_judge.scorers import quick_score
 
@@ -286,6 +289,19 @@ def test_llm_score_returns_error_on_unparseable_json() -> None:
     assert result.score == 0.0
 
 
+def test_ensemble_error_preserves_individual_judge_details() -> None:
+    case = EvalCase(case_id="x", question="Q?", answer="A", expected="A", chunks=["ctx"])
+
+    decision = score_with_judges(case, [BadJsonProvider(), BadJsonProvider()], parse_retries=0)
+
+    assert decision.verdict == "ERROR"
+    assert decision.provider == "ensemble"
+    assert len(decision.raw["individual_judges"]) == 2
+    assert decision.raw["individual_judges"][0]["verdict"] == "ERROR"
+    assert "judge failed" in decision.raw["individual_judges"][0]["rationale"]
+    assert "error" in decision.raw["individual_judges"][0]["raw"]
+
+
 def test_evaluate_cases_generates_missing_answer_and_resumes(tmp_path) -> None:
     case = EvalCase(case_id="x", question="Q?", answer="", expected="Generated answer.", chunks=["ctx"])
 
@@ -310,6 +326,27 @@ def test_evaluate_cases_generates_missing_answer_and_resumes(tmp_path) -> None:
         resume=True,
     )
     assert rows2 == rows
+
+
+def test_cli_limit_only_evaluates_first_n_cases(tmp_path) -> None:
+    path = tmp_path / "cases.jsonl"
+    path.write_text(
+        "\n".join(
+            [
+                '{"id":"one","question":"Q1?","answer":"A","expected":"A"}',
+                '{"id":"two","question":"Q2?","answer":"A","expected":"A"}',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "out"
+
+    status = main(["evaluate", "--input", str(path), "--limit", "1", "--out", str(out_dir)])
+
+    assert status == 0
+    rows = [json.loads(line) for line in (out_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [row["id"] for row in rows] == ["one"]
 
 
 def test_evaluate_case_can_generate_expected_then_answer() -> None:
@@ -443,3 +480,50 @@ def test_openai_compatible_local_endpoint_does_not_require_api_key(monkeypatch) 
     )
 
     assert provider.model == "local-model"
+
+
+def test_openai_provider_can_disable_response_format_and_set_max_tokens() -> None:
+    provider = OpenAICompatibleProvider(
+        name="openai-compatible",
+        model="local-model",
+        base_url="http://127.0.0.1:8000/v1",
+        api_key=None,
+        max_tokens=77,
+        disable_response_format=True,
+    )
+    captured = {}
+
+    def fake_post(url, body, headers):
+        captured["body"] = body
+        return LLMResponse(text="{}", latency_ms=1)
+
+    provider._post = fake_post  # type: ignore[method-assign]
+
+    provider.complete("prompt", json_mode=True)
+
+    assert captured["body"]["max_tokens"] == 77
+    assert "response_format" not in captured["body"]
+
+
+def test_openai_provider_strict_json_fallback_retries_without_response_format() -> None:
+    provider = OpenAICompatibleProvider(
+        name="openai-compatible",
+        model="local-model",
+        base_url="http://127.0.0.1:8000/v1",
+        api_key=None,
+        strict_json_fallback=True,
+    )
+    bodies = []
+
+    def fake_post(url, body, headers):
+        bodies.append(body)
+        if "response_format" in body:
+            raise LLMProviderError("unsupported response_format")
+        return LLMResponse(text="{}", latency_ms=1)
+
+    provider._post = fake_post  # type: ignore[method-assign]
+
+    provider.complete("prompt", json_mode=True)
+
+    assert "response_format" in bodies[0]
+    assert "response_format" not in bodies[1]

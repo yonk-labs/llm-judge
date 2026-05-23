@@ -137,13 +137,18 @@ A copyable real-provider template is available at `examples/llm_config.sample.ya
 
 For sweeps with hundreds or thousands of cases:
 
+- Use `--limit` for smoke tests before running the full benchmark.
 - Use `--cache-dir` to avoid paying twice for identical prompts.
 - Use `--resume` so existing case IDs in `results.jsonl` are skipped.
 - Use `--concurrency` for parallel calls.
 - Keep `--retries` above zero for transient HTTP failures.
 - Keep `--parse-retries` above zero for models that sometimes return malformed JSON.
+- Use `--disable-response-format` for local OpenAI-compatible providers that reject strict JSON mode.
+- Use `--max-tokens` to cap provider output where supported.
 
 Provider failures and malformed judge JSON become `ERROR` rows. They do not abort the run.
+
+When all judges in an ensemble fail, the final row is `ERROR` and preserves each judge's error details under `raw.individual_judges`.
 
 ## Output Files
 

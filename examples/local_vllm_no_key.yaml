@@ -1,0 +1,26 @@
+# Local OpenAI-compatible vLLM/llama.cpp-style server with no API key.
+#
+# This assumes a chat-completions server is listening on:
+#   http://127.0.0.1:8000/v1
+#
+# No api_key_env is needed for private/local endpoints that do not require auth.
+# disable_response_format is useful for servers/models that reject OpenAI's
+# response_format JSON-mode extension.
+
+input: examples/rag_eval.jsonl
+profile: default
+out: .llm-judge-runs/local-vllm-no-key
+mode: accurate
+concurrency: 1
+timeout: 120
+retries: 2
+parse_retries: 2
+temperature: 0.0
+max_tokens: 1200
+disable_response_format: true
+strict_json_fallback: true
+
+judges:
+  - provider: openai-compatible
+    model: local-model-name
+    base_url: http://127.0.0.1:8000/v1

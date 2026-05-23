@@ -151,6 +151,22 @@ python3 -m llm_judge evaluate \
   --out .llm-judge-runs/run-name
 ```
 
+For a local OpenAI-compatible no-key server such as vLLM, llama.cpp, or LM Studio:
+
+```bash
+python3 -m llm_judge evaluate \
+  --input path/to/cases.jsonl \
+  --mode accurate \
+  --provider openai-compatible \
+  --base-url http://127.0.0.1:8000/v1 \
+  --model local-model-name \
+  --disable-response-format \
+  --max-tokens 1200 \
+  --out .llm-judge-runs/local-vllm
+```
+
+Use `--strict-json-fallback` / `--no-strict-json-fallback` to control whether JSON-mode calls are retried without provider-native strict JSON knobs when a server rejects them. Use `--limit` for smoke tests before long sweeps.
+
 For Ollama:
 
 ```bash
