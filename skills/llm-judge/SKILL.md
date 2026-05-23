@@ -167,6 +167,8 @@ python3 -m llm_judge evaluate \
 
 Use `--strict-json-fallback` / `--no-strict-json-fallback` to control whether JSON-mode calls are retried without provider-native strict JSON knobs when a server rejects them. Use `--limit` for smoke tests before long sweeps.
 
+Use `--audit` when debugging. It writes `audit/<case-id>/` with the source input record, normalized case, chunks/reference context, answer/reference/judge prompts, and raw provider/judge outputs so the call can be inspected or replayed.
+
 For Ollama:
 
 ```bash

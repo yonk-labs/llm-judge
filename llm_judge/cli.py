@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate.add_argument("--out", type=Path, help="Output directory. Defaults to .llm-judge-runs/<timestamp>.")
     evaluate.add_argument("--limit", type=int, help="Only evaluate the first N normalized cases.")
+    evaluate.add_argument("--audit", action="store_true", default=None, help="Write replay-oriented per-case audit files with prompts, chunks, normalized data, and raw provider outputs.")
     evaluate.add_argument("--mode", choices=["quick", "accurate", "dual"], default=None)
     evaluate.add_argument("--synonyms", help="Optional JSON synonym map for quick scoring.")
     evaluate.add_argument("--provider", help="mock, openai-compatible, openai, openrouter, ollama, anthropic, gemini, command.")
@@ -92,6 +93,7 @@ def run_evaluate(args: argparse.Namespace) -> int:
     concurrency = int(pick(args.concurrency, config, "concurrency", 1))
     llm_threshold = float(pick(args.llm_threshold, config, "llm_threshold", 0.72))
     resume = bool(pick(args.resume, config, "resume", False))
+    audit = bool(pick(args.audit, config, "audit", False))
     generate_answer_flag = bool(pick(args.generate_answer, config, "generate_answer", False))
     generate_expected_flag = bool(pick(args.generate_expected, config, "generate_expected", False) or pick(args.generate_expected, config, "generate_gold", False))
     expected_samples = int(pick(args.expected_samples, config, "expected_samples", 1))
@@ -198,6 +200,7 @@ def run_evaluate(args: argparse.Namespace) -> int:
         llm_threshold=llm_threshold,
         parse_retries=parse_retries,
         resume=resume,
+        audit=audit,
     )
     summary = out_dir / "summary.md"
     print(f"Wrote {len(rows)} judged cases to {out_dir}")

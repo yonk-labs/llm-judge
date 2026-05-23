@@ -27,6 +27,7 @@ python3 -m llm_judge evaluate --input cases.jsonl --mode quick
 | `--profile` | enum | `default` | Input schema profile. Run `profiles` for choices. |
 | `--out` | path | `.llm-judge-runs/<timestamp>` | Output directory. |
 | `--limit` | int | none | Only evaluate the first N normalized cases. Useful for smoke tests. |
+| `--audit` | flag | false | Write replay-oriented per-case audit files with prompts, chunks, normalized/source data, and raw provider outputs. |
 | `--mode` | enum | `quick` | `quick`, `accurate`, or `dual`. |
 | `--synonyms` | path | none | JSON synonym map for quick scoring. |
 | `--provider` | string | `openai-compatible` | Judge provider. |
@@ -110,6 +111,7 @@ generate_expected: true
 concurrency: 8
 cache_dir: .llm-judge-cache
 resume: true
+audit: true
 timeout: 120
 retries: 2
 parse_retries: 1

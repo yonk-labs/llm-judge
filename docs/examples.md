@@ -10,6 +10,19 @@ llm-judge evaluate \
   --out .llm-judge-runs/default-quick
 ```
 
+## Replay Audit
+
+```bash
+llm-judge evaluate \
+  --input examples/rag_eval.jsonl \
+  --limit 1 \
+  --mode quick \
+  --audit \
+  --out .llm-judge-runs/audit-smoke
+```
+
+Inspect `audit/<case-id>/prompt-judge.txt`, `case.json`, `chunks.json`, and `raw.json` to replay or debug what happened.
+
 ## RAGAS Output
 
 ```bash

@@ -389,6 +389,7 @@ def load_cases(path: Path, profile: str = "default") -> list[EvalCase]:
                 reference_contexts=list(reference_contexts),
                 settings=dict(settings),
                 metadata=metadata,
+                source_record=dict(record),
             )
         )
     return cases

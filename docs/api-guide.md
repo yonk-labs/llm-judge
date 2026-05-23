@@ -15,6 +15,7 @@ EvalCase(
     reference_contexts: list[Any] = [],
     settings: dict[str, Any] = {},
     metadata: dict[str, Any] = {},
+    source_record: dict[str, Any] = {},
 )
 ```
 
@@ -186,4 +187,5 @@ rows = evaluate_cases(
 | `llm_judge.engine` | `generate_reference_with_providers(case, providers, parse_retries)` | Aggregate up to three reference/gold generators. |
 | `llm_judge.engine` | `score_with_judges(case, providers, parse_retries)` | Aggregate up to three judge providers. |
 | `llm_judge.report` | `write_case_audit(case_dir, case, decision)` | Write per-case Markdown audit. |
+| `llm_judge.report` | `write_trace_audit(audit_dir, case, decision)` | Write replay-oriented JSON and prompt audit files. |
 | `llm_judge.report` | `write_summary(out_dir, rows)` | Write aggregate summary. |

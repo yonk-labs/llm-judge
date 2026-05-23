@@ -225,6 +225,7 @@ Each run writes:
 - `summary.md` with aggregate metrics and headers.
 - `results.jsonl` with machine-readable per-case results.
 - `cases/<id>.md` with the full audit for each case.
+- With `--audit`, `audit/<id>/` with replay-oriented files: original source record, normalized case data, chunks/reference context, prompts, and raw provider/judge outputs.
 
 The output directory is intentionally ignored by git.
 

@@ -349,6 +349,30 @@ def test_cli_limit_only_evaluates_first_n_cases(tmp_path) -> None:
     assert [row["id"] for row in rows] == ["one"]
 
 
+def test_cli_audit_writes_replay_files(tmp_path) -> None:
+    path = tmp_path / "cases.jsonl"
+    path.write_text(
+        '{"id":"audit-one","question":"Q?","answer":"Alpha","expected":"Alpha","chunks":["ctx"],"settings":{"k":1}}\n',
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "out"
+
+    status = main(["evaluate", "--input", str(path), "--audit", "--out", str(out_dir)])
+
+    assert status == 0
+    audit_dir = out_dir / "audit" / "audit-one"
+    assert (audit_dir / "case.json").exists()
+    assert (audit_dir / "chunks.json").exists()
+    assert (audit_dir / "prompts.json").exists()
+    assert (audit_dir / "raw.json").exists()
+    assert "Question:\nQ?" in (audit_dir / "prompt-judge.txt").read_text(encoding="utf-8")
+    case_payload = json.loads((audit_dir / "case.json").read_text(encoding="utf-8"))
+    assert case_payload["chunks"] == ["ctx"]
+    assert case_payload["source_record"]["settings"] == {"k": 1}
+    raw_payload = json.loads((audit_dir / "raw.json").read_text(encoding="utf-8"))
+    assert raw_payload["decision"]["verdict"] == "CORRECT"
+
+
 def test_evaluate_case_can_generate_expected_then_answer() -> None:
     case = EvalCase(
         case_id="birthplace",

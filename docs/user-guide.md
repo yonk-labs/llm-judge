@@ -138,6 +138,7 @@ A copyable real-provider template is available at `examples/llm_config.sample.ya
 For sweeps with hundreds or thousands of cases:
 
 - Use `--limit` for smoke tests before running the full benchmark.
+- Use `--audit` when debugging a judge or RAG run; it writes replay files with prompts, raw source records, chunks, reference context, normalized case data, and raw provider outputs.
 - Use `--cache-dir` to avoid paying twice for identical prompts.
 - Use `--resume` so existing case IDs in `results.jsonl` are skipped.
 - Use `--concurrency` for parallel calls.
@@ -155,6 +156,7 @@ When all judges in an ensemble fail, the final row is `ERROR` and preserves each
 - `summary.md`: aggregate pass rate, mean score, error count, slowest cases, common missing facts.
 - `results.jsonl`: one machine-readable row per case.
 - `cases/<case-id>.md`: full audit with question, settings, chunks, answer, expected answer, required facts, acceptable answers, supported/missing facts, contradictions, and timing.
+- `audit/<case-id>/`: optional `--audit` replay bundle containing `case.json`, `chunks.json`, `prompts.json`, `raw.json`, and plain-text prompt files for answer/reference/judge calls.
 
 ## Verdicts
 

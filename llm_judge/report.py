@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import EvalCase, JudgeDecision, normalize_verdict
+from .scorers import answer_prompt, judge_prompt, reference_prompt
 
 
 def safe_name(value: str) -> str:
@@ -85,6 +86,61 @@ def write_case_audit(case_dir: Path, case: EvalCase, decision: JudgeDecision) ->
 """
     path.write_text(body, encoding="utf-8")
     return path
+
+
+def write_trace_audit(audit_dir: Path, case: EvalCase, decision: JudgeDecision) -> Path:
+    """Write replay-oriented audit files for one judged case."""
+    case_dir = audit_dir / safe_name(case.case_id)
+    case_dir.mkdir(parents=True, exist_ok=True)
+
+    normalized_case = {
+        "source_record": case.source_record,
+        "id": case.case_id,
+        "question": case.question,
+        "answer": case.answer,
+        "expected": case.expected,
+        "expected_facts": case.expected_facts,
+        "chunks": case.chunks,
+        "reference_contexts": case.reference_contexts,
+        "settings": case.settings,
+        "metadata": case.metadata,
+    }
+    prompts = {
+        "answer": answer_prompt(case),
+        "reference": reference_prompt(case),
+        "judge": judge_prompt(case),
+    }
+    raw = {
+        "decision": {
+            "verdict": decision.verdict,
+            "score": decision.score,
+            "passed": decision.passed,
+            "provider": decision.provider,
+            "model": decision.model,
+            "latency_ms": decision.latency_ms,
+            "answer_score": decision.answer_score,
+            "retrieval_score": decision.retrieval_score,
+            "supported": decision.supported,
+            "missing": decision.missing,
+            "contradictions": decision.contradictions,
+            "rationale": decision.rationale,
+            "raw": decision.raw,
+        },
+        "metadata": case.metadata,
+    }
+
+    _write_json(case_dir / "case.json", normalized_case)
+    _write_json(case_dir / "chunks.json", {"chunks": case.chunks, "reference_contexts": case.reference_contexts})
+    _write_json(case_dir / "prompts.json", prompts)
+    _write_json(case_dir / "raw.json", raw)
+    (case_dir / "prompt-answer.txt").write_text(prompts["answer"], encoding="utf-8")
+    (case_dir / "prompt-reference.txt").write_text(prompts["reference"], encoding="utf-8")
+    (case_dir / "prompt-judge.txt").write_text(prompts["judge"], encoding="utf-8")
+    return case_dir
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _list(values: list[str]) -> str:

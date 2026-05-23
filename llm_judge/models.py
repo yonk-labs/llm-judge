@@ -51,6 +51,8 @@ class EvalCase:
         Benchmark settings that should appear in audits, such as mode/config labels.
     metadata:
         Extra source fields preserved but not interpreted by the judge.
+    source_record:
+        Original input record before profile normalization. Used for audit/replay.
     """
     case_id: str
     question: str
@@ -61,6 +63,7 @@ class EvalCase:
     reference_contexts: list[Any] = field(default_factory=list)
     settings: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    source_record: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

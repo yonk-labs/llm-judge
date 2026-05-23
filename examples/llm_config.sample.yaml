@@ -28,6 +28,7 @@ generate_expected: false
 concurrency: 4
 cache_dir: .llm-judge-cache
 resume: true
+audit: false
 timeout: 120
 retries: 2
 parse_retries: 1

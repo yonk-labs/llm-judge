@@ -9,7 +9,7 @@ from typing import Iterable, Sequence
 from .io import dump_jsonl
 from .models import EvalCase, JudgeDecision, ReferenceDecision, normalize_verdict
 from .providers import LLMProvider
-from .report import result_row, write_case_audit, write_summary
+from .report import result_row, write_case_audit, write_summary, write_trace_audit
 from .scorers import generate_answer, generate_reference, llm_score, quick_score
 
 
@@ -312,6 +312,7 @@ def evaluate_cases(
     llm_threshold: float = 0.72,
     parse_retries: int = 1,
     resume: bool = False,
+    audit: bool = False,
 ) -> list[dict]:
     """Evaluate many cases with optional concurrency, cache-backed providers, and resume.
 
@@ -347,9 +348,12 @@ def evaluate_cases(
         Judge JSON repair retry count.
     resume:
         If true, skip case IDs already present in ``results.jsonl``.
+    audit:
+        If true, write replay-oriented audit files under ``audit/<case-id>/``.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     case_dir = out_dir / "cases"
+    audit_dir = out_dir / "audit"
     rows_by_id: dict[str, dict] = {}
     results_path = out_dir / "results.jsonl"
     if resume and results_path.exists():
@@ -378,6 +382,8 @@ def evaluate_cases(
             parse_retries=parse_retries,
         )
         write_case_audit(case_dir, judged_case, decision)
+        if audit:
+            write_trace_audit(audit_dir, judged_case, decision)
         return judged_case.case_id, result_row(judged_case, decision)
 
     if concurrency <= 1:
