@@ -51,7 +51,7 @@ llm-judge evaluate \
   --out .llm-judge-runs/baseline-reference
 ```
 
-The broad birthplace case can accept semantically true variants such as state, city, or site. The specific city-and-hospital case should require both requested fields.
+The broad birthplace case can give full credit to semantically true variants such as state, city, or site. The specific city-and-hospital case should require both requested fields, so city-only is partial.
 
 ## Local Two-Judge Setup
 

@@ -108,7 +108,7 @@ python3 -m llm_judge evaluate \
   --out .llm-judge-runs/baseline
 ```
 
-Use `reference_context`, `oracle_context`, `full_context`, or `full_data` for the complete source data. The generated reference must match the question granularity: a broad "where" question can accept true state/city/site variants, while a "city and hospital" question requires both fields.
+Use `reference_context`, `oracle_context`, `full_context`, or `full_data` for the complete source data. The generated reference must match the question granularity: a broad "where" question can give full credit to true state/city/site variants, while a "city and hospital" question requires both fields and should score city-only as partial credit.
 
 For a YAML setup with up to three judges:
 

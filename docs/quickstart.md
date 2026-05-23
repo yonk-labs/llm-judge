@@ -91,7 +91,7 @@ llm-judge evaluate \
   --out .llm-judge-runs/baseline
 ```
 
-The generated reference includes required facts and acceptable answer variants. The judge uses the question's requested granularity: broad "where" questions can accept state/city/site answers when true, while "city and hospital" questions require both.
+The generated reference includes required facts and acceptable answer variants. The judge uses the question's requested granularity: broad "where" questions can give full credit to any supported state/city/site answer, while "city and hospital" questions require both and score missing fields as partial credit.
 
 ## 7. Use YAML
 

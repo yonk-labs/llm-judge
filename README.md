@@ -171,7 +171,7 @@ python3 -m llm_judge evaluate \
   --out .llm-judge-runs/baseline
 ```
 
-Use this when the benchmark has a question and full/oracle source data but no trusted `gold_answer`. The reference generator writes a concise expected answer, strictly required facts, and acceptable answer variants. For broad questions like "Where was Matt born?", variants such as "Michigan", "Grand Rapids", or a specific hospital can be accepted when the source supports them. For specific questions like "What city and hospital was he born at?", the generated required facts should require both fields.
+Use this when the benchmark has a question and full/oracle source data but no trusted `gold_answer`. The reference generator writes a concise expected answer, strictly required facts, and acceptable answer variants. For broad questions like "Where was Matt born?", variants such as "Michigan", "Grand Rapids", or a specific hospital can each be 100% correct when the source supports them. For specific questions like "What city and hospital was he born at?", the generated required facts should require both fields, so city-only is partial credit.
 
 YAML setup with up to three LLM judges:
 

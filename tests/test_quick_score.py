@@ -243,6 +243,40 @@ def test_quick_score_accepts_generated_reference_variants() -> None:
     assert result.raw["expected_variant"] == "Michigan"
 
 
+def test_quick_score_scores_required_fact_coverage_as_partial() -> None:
+    case = EvalCase(
+        case_id="birthplace-specific",
+        question="What city and hospital was Matt born at?",
+        answer="He was born in Grand Rapids.",
+        expected="Matt was born at St Mary's Hospital in Grand Rapids.",
+        expected_facts=["City: Grand Rapids", "Hospital: St Mary's Hospital"],
+        metadata={"acceptable_answers": ["Grand Rapids"]},
+    )
+
+    result = quick_score(case)
+
+    assert result.verdict == "PARTIAL"
+    assert result.score == 0.5
+    assert result.supported == ["City: Grand Rapids"]
+    assert result.missing == ["Hospital: St Mary's Hospital"]
+
+
+def test_quick_score_full_credit_when_all_required_facts_present() -> None:
+    case = EvalCase(
+        case_id="birthplace-specific",
+        question="What city and hospital was Matt born at?",
+        answer="He was born at St Mary's Hospital in Grand Rapids.",
+        expected="Matt was born at St Mary's Hospital in Grand Rapids.",
+        expected_facts=["City: Grand Rapids", "Hospital: St Mary's Hospital"],
+    )
+
+    result = quick_score(case)
+
+    assert result.verdict == "CORRECT"
+    assert result.score == 1.0
+    assert result.missing == []
+
+
 def test_llm_score_returns_error_on_unparseable_json() -> None:
     case = EvalCase(case_id="x", question="Q?", answer="A", expected="A", chunks=["ctx"])
 

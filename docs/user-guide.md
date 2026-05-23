@@ -78,6 +78,8 @@ You can also generate both sides in one run: `--generate-expected` creates the r
 
 For more robust baselines, use up to three reference generators in YAML. The first successful reference becomes the expected answer; all successful expected answers and listed aliases are retained as acceptable answers for semantic judging.
 
+Grading depends on the question granularity. If there are no specific required facts, any supported acceptable answer can be fully correct. For example, "Michigan", "Grand Rapids", and "St Mary's Hospital in Grand Rapids" can each fully answer "Where was Matt Yonkovit born?" if the source supports them. If the question asks "What city and hospital was Matt Yonkovit born at?", use separate required facts for city and hospital; an answer with only the city should be `PARTIAL` with a score around `0.50`.
+
 ## YAML Setup With Up To Three Judges
 
 Create a run file:

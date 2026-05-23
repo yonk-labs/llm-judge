@@ -137,6 +137,10 @@ def quick_score(case: EvalCase, synonyms: dict[str, list[str]] | None = None) ->
     """Score an answer with deterministic, paraphrase-tolerant heuristics."""
     start = time.perf_counter()
     synonyms = synonyms or BUILTIN_SYNONYMS
+    if case.expected_facts:
+        decision = _quick_score_required_facts(case, synonyms)
+        decision.latency_ms = int((time.perf_counter() - start) * 1000)
+        return decision
     acceptable = case.metadata.get("acceptable_answers") or case.metadata.get("reference_generation", {}).get("acceptable_answers", [])
     variants = [case.expected, *[str(item) for item in acceptable]]
     decisions = [_quick_score_variant(case, expected, synonyms) for expected in variants if str(expected).strip()]
@@ -147,6 +151,56 @@ def quick_score(case: EvalCase, synonyms: dict[str, list[str]] | None = None) ->
     if decision.raw.get("expected_variant") and decision.raw["expected_variant"] != case.expected:
         decision.rationale = f"Matched acceptable answer variant: {decision.raw['expected_variant']}. {decision.rationale}"
     return decision
+
+
+def _quick_score_required_facts(case: EvalCase, synonyms: dict[str, list[str]]) -> JudgeDecision:
+    supported = [fact for fact in case.expected_facts if _fact_present(fact, case.answer, synonyms)]
+    missing = [fact for fact in case.expected_facts if fact not in supported]
+    score = len(supported) / len(case.expected_facts)
+    if score >= 0.999:
+        verdict = "CORRECT"
+        missing = []
+    elif score > 0:
+        verdict = "PARTIAL"
+    else:
+        verdict = "INCORRECT"
+    chunk_text = "\n".join(str(chunk) for chunk in case.chunks)
+    fact_tokens = tokens(" ".join(case.expected_facts))
+    retrieval_score = cosine_similarity(fact_tokens, tokens(chunk_text))
+    rationale = (
+        f"Quick scorer used required-fact coverage={score:.2f} "
+        f"({len(supported)}/{len(case.expected_facts)} facts supported). "
+        "When expected_facts are supplied, they define the grading units."
+    )
+    return JudgeDecision(
+        score=round(score, 3),
+        verdict=verdict,
+        rationale=rationale,
+        missing=missing,
+        supported=supported,
+        retrieval_score=round(retrieval_score, 3),
+        answer_score=round(score, 3),
+        raw={"fact_coverage": score, "required_fact_count": len(case.expected_facts)},
+    )
+
+
+def _fact_present(fact: str, answer: str, synonyms: dict[str, list[str]]) -> bool:
+    if _term_present(fact, answer, synonyms):
+        return True
+    for candidate in _fact_value_candidates(fact):
+        if candidate and _term_present(candidate, answer, synonyms):
+            return True
+    return False
+
+
+def _fact_value_candidates(fact: str) -> list[str]:
+    candidates = []
+    for separator in (":", "=", " is ", " was ", " are ", " were "):
+        if separator in fact:
+            value = fact.split(separator, 1)[1].strip(" .;")
+            if value:
+                candidates.append(value)
+    return candidates
 
 
 def _quick_score_variant(case: EvalCase, expected: str, synonyms: dict[str, list[str]]) -> JudgeDecision:
@@ -219,7 +273,9 @@ Do not require exact wording. Treat abbreviations, aliases, synonyms, reordered 
 
 Grade against the question, expected answer, expected required facts, acceptable answers, and retrieved chunks. Penalize hallucinated contradictions. Do not penalize missing nice-to-have details unless they are necessary to answer the question.
 
-Use the granularity requested by the question. If the question broadly asks "where", an answer may be correct when it gives a true state, city, or specific site that answers the location. If the question asks for specific fields such as "city and hospital", require those fields. Required facts override this broad-location leniency.
+Use the granularity requested by the question. If the question broadly asks "where" and no stricter required facts are listed, an answer may be fully correct when it gives any true state, city, or specific site that answers the location. If the question asks for specific fields such as "city and hospital", require those fields. Required facts override this broad-location leniency.
+
+For multi-part questions, assign partial credit by required fact coverage. If the answer satisfies one of two required facts, it should usually be PARTIAL with score near 0.50. If it satisfies two of three required facts, score near 0.67. Do not mark a partial answer fully correct because it mentions one correct detail.
 
 Return only JSON with this schema:
 {{
@@ -294,8 +350,10 @@ Rules:
 - Use only the supplied full/oracle context.
 - Match the question's requested granularity.
 - Do not make every detail in the context mandatory.
-- If the question asks broadly, list broader true answers as acceptable aliases.
+- If the question asks broadly, list broader true answers as acceptable aliases and do not create strict required facts for every supported granularity.
 - If the question asks for specific fields, make those fields required facts.
+- For multi-part questions, split each requested field into its own required fact so partial answers can be scored proportionally. Example: for "city and hospital", use separate facts for city and hospital.
+- For broad questions where several granularities are acceptable, prefer `acceptable_answers` over required facts.
 - If the context is insufficient, set expected to "Insufficient information." and explain why.
 
 Question:
